@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Painel do Analista</h4>
+  <div class="no-print">
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">Imprimir relatório</button>
+  </div>
+</div>
+
+<table class="table table-bordered align-middle">
+  <thead>
+    <tr>
+      <th style="width:160px">Número</th>
+      <th>Título</th>
+      <th style="width:230px">Status</th>
+      <th style="width:340px">Observações</th>
+    </tr>
+  </thead>
+  <tbody id="tblBody">
+    {% for p in processos %}
+    <tr data-id="{{ p.id }}">
+      <td class="fw-semibold">{{ p.numero }}</td>
+      <td>{{ p.titulo }}</td>
+      <td>
+        <select class="form-select form-select-sm no-print status-select" data-id="{{ p.id }}">
+          {% for opt in ['novo','em_analise','aguardando','concluido','arquivado'] %}
+            <option value="{{ opt }}" {% if p.status == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+        <span class="d-print-inline d-none">{{ p.status }}</span>
+      </td>
+      <td class="no-print">
+        <textarea
+          class="form-control form-control-sm obs-input"
+          rows="2"
+          placeholder="Anotações rápidas"
+          data-id="{{ p.id }}"
+        >{{ p.observacoes or '' }}</textarea>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Toast de confirmação -->
+<div class="position-fixed bottom-0 end-0 p-3 no-print" style="z-index: 1080">
+  <div id="toastSaved" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true" data-bs-delay="1200">
+    <div class="d-flex">
+      <div class="toast-body">✔ Alterações salvas</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+    </div>
+  </div>
+</div>
+
+{% raw %}
+<script>
+async function apiSalvarStatus(id, status){
+  const fd = new FormData();
+  fd.append('status', status);
+  const r = await fetch(`/analista/processo/${id}/salvar`, { method: 'POST', body: fd });
+  return r.ok;
+}
+async function apiSalvarObs(id, obs){
+  const fd = new FormData();
+  fd.append('observacoes', obs);
+  const r = await fetch(`/analista/processo/${id}/salvar`, { method: 'POST', body: fd });
+  return r.ok;
+}
+function showSaved(){
+  try {
+    const el = document.getElementById('toastSaved');
+    if (!el) return;
+    const toast = new bootstrap.Toast(el);
+    toast.show();
+  } catch(e) {}
+}
+// auto-save: status
+document.querySelectorAll('.status-select').forEach(el => {
+  el.addEventListener('change', async e => {
+    const ok = await apiSalvarStatus(e.currentTarget.dataset.id, e.currentTarget.value);
+    if (ok) showSaved(); else alert('Falha ao salvar status.');
+  });
+});
+// auto-save: observações
+document.querySelectorAll('.obs-input').forEach(el => {
+  el.addEventListener('blur', async e => {
+    const ok = await apiSalvarObs(e.currentTarget.dataset.id, e.currentTarget.value);
+    if (ok) showSaved(); else alert('Falha ao salvar observações.');
+  });
+});
+</script>
+{% endraw %}
+{% endblock %}
