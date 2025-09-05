@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="mb-3">Meus Processos</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5>Total</h5>
+                <h3 class="text-primary">{{ stats.total }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5>Em Análise</h5>
+                <h3 class="text-warning">{{ stats.em_analise }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5>Aguardando</h5>
+                <h3 class="text-info">{{ stats.aguardando }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5>Concluído</h5>
+                <h3 class="text-success">{{ stats.concluido }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% for p in processos %}
+        <div class="card mb-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>{{ p.numero }} - {{ p.titulo }}</h6>
+                        <p class="text-muted small">{{ p.descricao or 'Sem descrição' }}</p>
+                    </div>
+                    <div>
+                        <select class="form-select form-select-sm" onchange="alterarStatus({{ p.id }}, this.value)">
+                            <option value="novo" {% if p.status == 'novo' %}selected{% endif %}>Novo</option>
+                            <option value="em_analise" {% if p.status == 'em_analise' %}selected{% endif %}>Em Análise</option>
+                            <option value="aguardando" {% if p.status == 'aguardando' %}selected{% endif %}>Aguardando</option>
+                            <option value="concluido" {% if p.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function alterarStatus(id, status) {
+    fetch(`/api/processo/${id}/atualizar`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Erro: ' + data.message);
+        }
+    });
+}
+</script>
+{% endblock %}
