@@ -1,0 +1,885 @@
+<!-- templates/sar/central_estatisticas.html -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central de Estatísticas - SAR</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <style>
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .metric-card:hover::before {
+            top: -25%;
+            right: -25%;
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-change {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+        }
+        
+        .progress-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+        
+        .progress-ring-bg {
+            stroke: #e9ecef;
+        }
+        
+        .progress-ring-progress {
+            stroke: #28a745;
+            stroke-dasharray: 283;
+            stroke-dashoffset: 283;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .progress-ring-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .realtime-indicator {
+            display: inline-flex;
+            align-items: center;
+            background: #28a745;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .realtime-indicator::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .filter-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .analista-performance {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #007bff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .performance-bar {
+            background: #e9ecef;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .performance-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .tab-content {
+            padding-top: 1rem;
+        }
+        
+        .nav-pills .nav-link {
+            border-radius: 25px;
+            margin-right: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-4">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Central de Estatísticas</h2>
+                <div class="d-flex align-items-center gap-3">
+                    <p class="text-muted mb-0">Acompanhamento em tempo real da produção</p>
+                    <span class="realtime-indicator">
+                        Tempo Real
+                    </span>
+                    <small class="text-muted">Última atualização: <span id="lastUpdate">--:--</span></small>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn refresh-btn" onclick="refreshData()">
+                    <i class="fas fa-sync-alt me-2"></i>Atualizar
+                </button>
+                <button class="btn btn-outline-primary" onclick="exportarRelatorio()">
+                    <i class="fas fa-download me-2"></i>Exportar
+                </button>
+                <button class="btn btn-outline-secondary" onclick="configurarAlertas()">
+                    <i class="fas fa-cog me-2"></i>Configurar
+                </button>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-card">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small">Período</label>
+                    <select class="form-select form-select-sm" id="periodoFilter" onchange="aplicarFiltros()">
+                        <option value="hoje">Hoje</option>
+                        <option value="semana" selected>Esta Semana</option>
+                        <option value="mes">Este Mês</option>
+                        <option value="trimestre">Trimestre</option>
+                        <option value="personalizado">Personalizado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Analista</label>
+                    <select class="form-select form-select-sm" id="analistaFilter" onchange="aplicarFiltros()">
+                        <option value="">Todos os Analistas</option>
+                        <option value="minha">Minha Performance</option>
+                        <!-- Preenchido via JavaScript -->
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Status</label>
+                    <select class="form-select form-select-sm" id="statusFilter" onchange="aplicarFiltros()">
+                        <option value="">Todos os Status</option>
+                        <option value="novo">Novo</option>
+                        <option value="em_analise">Em Análise</option>
+                        <option value="aguardando">Aguardando</option>
+                        <option value="concluido">Concluído</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Comparar com</label>
+                    <select class="form-select form-select-sm" id="compararFilter" onchange="aplicarFiltros()">
+                        <option value="">Sem comparação</option>
+                        <option value="semana_anterior">Semana Anterior</option>
+                        <option value="mes_anterior">Mês Anterior</option>
+                        <option value="mesmo_periodo_ano_anterior">Mesmo Período (Ano Anterior)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs de Navegação -->
+        <ul class="nav nav-pills mb-4" id="statsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="geral-tab" data-bs-toggle="pill" data-bs-target="#geral" type="button">
+                    <i class="fas fa-chart-line me-2"></i>Visão Geral
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analistas-tab" data-bs-toggle="pill" data-bs-target="#analistas" type="button">
+                    <i class="fas fa-users me-2"></i>Por Analista
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tendencias-tab" data-bs-toggle="pill" data-bs-target="#tendencias" type="button">
+                    <i class="fas fa-trending-up me-2"></i>Tendências
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="metas-tab" data-bs-toggle="pill" data-bs-target="#metas" type="button">
+                    <i class="fas fa-target me-2"></i>Metas
+                </button>
+            </li>
+        </ul>
+
+        <!-- Conteúdo das Tabs -->
+        <div class="tab-content" id="statsTabsContent">
+            <!-- Tab Visão Geral -->
+            <div class="tab-pane fade show active" id="geral" role="tabpanel">
+                <!-- Métricas Principais -->
+                <div class="stats-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Processos Criados</div>
+                        <div class="metric-value" id="processosCriados">0</div>
+                        <div class="metric-change">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="crescimentoCriados">+0%</span> vs período anterior
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Processos Concluídos</div>
+                        <div class="metric-value" id="processosConcluidos">0</div>
+                        <div class="metric-change">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="crescimentoConcluidos">+0%</span> vs período anterior
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Taxa de Conclusão</div>
+                        <div class="metric-value" id="taxaConclusao">0%</div>
+                        <div class="metric-change">
+                            Meta: <span id="metaTaxaConclusao">85%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Tempo Médio</div>
+                        <div class="metric-value" id="tempoMedio">0</div>
+                        <div class="metric-change">
+                            <span id="unidadeTempo">dias</span> para conclusão
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos Principais -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Evolução Diária de Processos</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleChartType('line')">Linha</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleChartType('bar')">Barras</button>
+                                </div>
+                            </div>
+                            <canvas id="evolucaoChart" height="300"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Distribuição por Status</h6>
+                            </div>
+                            <canvas id="statusChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Prioridades</h6>
+                            </div>
+                            <canvas id="prioridadeChart" height="250"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-6">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Tempo de Resolução</h6>
+                            </div>
+                            <canvas id="tempoResolucaoChart" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Por Analista -->
+            <div class="tab-pane fade" id="analistas" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div id="analistasPerformance">
+                            <!-- Preenchido via JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Ranking de Performance</h6>
+                            </div>
+                            <canvas id="rankingChart" height="400"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Tendências -->
+            <div class="tab-pane fade" id="tendencias" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Análise de Tendências - Últimos 3 Meses</h6>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleTendencia('volume')">Volume</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleTendencia('eficiencia')">Eficiência</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleTendencia('tempo')">Tempo Médio</button>
+                                </div>
+                            </div>
+                            <canvas id="tendenciasChart" height="400"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Sazonalidade (Dias da Semana)</h6>
+                            </div>
+                            <canvas id="sazonalidadeChart" height="250"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Previsão (Próximos 30 dias)</h6>
+                            </div>
+                            <canvas id="previsaoChart" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Metas -->
+            <div class="tab-pane fade" id="metas" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="chart-container text-center">
+                            <h6 class="chart-title">Meta Diária</h6>
+                            <div class="progress-ring">
+                                <svg>
+                                    <circle class="progress-ring-circle progress-ring-bg" cx="60" cy="60" r="45"></circle>
+                                    <circle class="progress-ring-circle progress-ring-progress" cx="60" cy="60" r="45" id="progressDaily"></circle>
+                                </svg>
+                                <div class="progress-ring-text">
+                                    <div class="h4 mb-0" id="progressDailyValue">0%</div>
+                                    <small class="text-muted">da meta diária</small>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0"><span id="processosHoje">0</span> de <span id="metaDiaria">5</span> processos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="chart-container text-center">
+                            <h6 class="chart-title">Meta Semanal</h6>
+                            <div class="progress-ring">
+                                <svg>
+                                    <circle class="progress-ring-circle progress-ring-bg" cx="60" cy="60" r="45"></circle>
+                                    <circle class="progress-ring-circle progress-ring-progress" cx="60" cy="60" r="45" id="progressWeekly" style="stroke: #ffc107;"></circle>
+                                </svg>
+                                <div class="progress-ring-text">
+                                    <div class="h4 mb-0" id="progressWeeklyValue">0%</div>
+                                    <small class="text-muted">da meta semanal</small>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0"><span id="processosSemana">0</span> de <span id="metaSemanal">25</span> processos</p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="chart-container text-center">
+                            <h6 class="chart-title">Meta Mensal</h6>
+                            <div class="progress-ring">
+                                <svg>
+                                    <circle class="progress-ring-circle progress-ring-bg" cx="60" cy="60" r="45"></circle>
+                                    <circle class="progress-ring-circle progress-ring-progress" cx="60" cy="60" r="45" id="progressMonthly" style="stroke: #dc3545;"></circle>
+                                </svg>
+                                <div class="progress-ring-text">
+                                    <div class="h4 mb-0" id="progressMonthlyValue">0%</div>
+                                    <small class="text-muted">da meta mensal</small>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0"><span id="processosMes">0</span> de <span id="metaMensal">100</span> processos</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h6 class="chart-title">Acompanhamento de Metas (Últimos 30 dias)</h6>
+                            </div>
+                            <canvas id="metasChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuração de Alertas -->
+    <div class="modal fade" id="modalAlertas" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Configurar Alertas</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Alerta quando meta diária estiver abaixo de:</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="alertaMetaDiaria" value="80">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Alerta para processos parados há mais de:</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="alertaProcessosParados" value="7">
+                            <span class="input-group-text">dias</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="alertaEmail">
+                            <label class="form-check-label" for="alertaEmail">
+                                Receber alertas por email
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarAlertas()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        let socket;
+        let charts = {};
+        let currentFilters = {
+            periodo: 'semana',
+            analista: '',
+            status: '',
+            comparar: ''
+        };
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeWebSocket();
+            loadInitialData();
+            setupCharts();
+            setupAutoRefresh();
+        });
+
+        // WebSocket
+        function initializeWebSocket() {
+            try {
+                socket = io();
+                socket.on('stats_update', function(data) {
+                    updateRealTimeData(data);
+                    updateLastUpdate();
+                });
+            } catch (error) {
+                console.error('Erro WebSocket:', error);
+            }
+        }
+
+        // Carregar dados iniciais
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/sar/api/estatisticas-tempo-real');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateDashboard(data.estatisticas);
+                    updateCharts(data.estatisticas);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+            }
+        }
+
+        // Configurar gráficos
+        function setupCharts() {
+            // Gráfico de Evolução
+            const evolucaoCtx = document.getElementById('evolucaoChart').getContext('2d');
+            charts.evolucao = new Chart(evolucaoCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Criados',
+                        data: [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Concluídos',
+                        data: [],
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Gráfico de Status (Pizza)
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            charts.status = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Novo', 'Em Análise', 'Aguardando', 'Concluído'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#6c757d', '#ffc107', '#fd7e14', '#28a745']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Outros gráficos...
+            setupAdditionalCharts();
+        }
+
+        function setupAdditionalCharts() {
+            // Gráfico de Prioridade
+            const prioridadeCtx = document.getElementById('prioridadeChart').getContext('2d');
+            charts.prioridade = new Chart(prioridadeCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Baixa', 'Média', 'Alta', 'Crítica'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Gráfico de Tempo de Resolução
+            const tempoCtx = document.getElementById('tempoResolucaoChart').getContext('2d');
+            charts.tempoResolucao = new Chart(tempoCtx, {
+                type: 'histogram',
+                data: {
+                    labels: ['0-1 dia', '1-3 dias', '3-7 dias', '7-15 dias', '+15 dias'],
+                    datasets: [{
+                        label: 'Processos',
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: '#007bff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Atualizar dashboard
+        function updateDashboard(estatisticas) {
+            const metricas = estatisticas.metricas_dia;
+            
+            document.getElementById('processosCriados').textContent = metricas.criados_hoje || 0;
+            document.getElementById('processosConcluidos').textContent = metricas.concluidos_hoje || 0;
+            document.getElementById('tempoMedio').textContent = metricas.tempo_medio_dias || 0;
+            
+            // Calcular taxa de conclusão
+            const taxa = metricas.criados_hoje > 0 ? 
+                Math.round((metricas.concluidos_hoje / metricas.criados_hoje) * 100) : 0;
+            document.getElementById('taxaConclusao').textContent = taxa + '%';
+            
+            // Atualizar metas
+            updateMetas(estatisticas.metas);
+            
+            // Atualizar performance dos analistas
+            updateAnalistas(estatisticas.produtividade_semanal);
+        }
+
+        // Atualizar metas
+        function updateMetas(metas) {
+            if (!metas) return;
+            
+            // Meta diária
+            updateProgressRing('progressDaily', metas.progresso_diario);
+            document.getElementById('progressDailyValue').textContent = Math.round(metas.progresso_diario) + '%';
+            
+            // Meta semanal
+            updateProgressRing('progressWeekly', metas.progresso_semanal);
+            document.getElementById('progressWeeklyValue').textContent = Math.round(metas.progresso_semanal) + '%';
+            
+            // Meta mensal (simulada)
+            const progressoMensal = Math.min(100, metas.progresso_semanal * 4);
+            updateProgressRing('progressMonthly', progressoMensal);
+            document.getElementById('progressMonthlyValue').textContent = Math.round(progressoMensal) + '%';
+        }
+
+        // Atualizar anel de progresso
+        function updateProgressRing(elementId, percentage) {
+            const circle = document.getElementById(elementId);
+            const circumference = 2 * Math.PI * 45; // raio = 45
+            const offset = circumference - (percentage / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        // Atualizar performance dos analistas
+        function updateAnalistas(data) {
+            const container = document.getElementById('analistasPerformance');
+            if (!container || !data) return;
+            
+            container.innerHTML = '';
+            
+            // Simular dados de analistas
+            const analistas = [
+                { nome: 'Bruno', concluidos: 12, meta: 15 },
+                { nome: 'Vanessa', concluidos: 18, meta: 15 },
+                { nome: 'Alessandro', concluidos: 10, meta: 15 },
+                { nome: 'Carmen', concluidos: 14, meta: 15 },
+                { nome: 'Zenilda', concluidos: 16, meta: 15 }
+            ];
+            
+            analistas.forEach(analista => {
+                const percentage = Math.round((analista.concluidos / analista.meta) * 100);
+                const html = `
+                    <div class="analista-performance">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">${analista.nome}</h6>
+                            <span class="badge ${percentage >= 100 ? 'bg-success' : percentage >= 80 ? 'bg-warning' : 'bg-danger'}">
+                                ${analista.concluidos}/${analista.meta}
+                            </span>
+                        </div>
+                        <div class="performance-bar">
+                            <div class="performance-fill" style="width: ${Math.min(percentage, 100)}%"></div>
+                        </div>
+                        <small class="text-muted">${percentage}% da meta semanal</small>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        // Aplicar filtros
+        function aplicarFiltros() {
+            currentFilters.periodo = document.getElementById('periodoFilter').value;
+            currentFilters.analista = document.getElementById('analistaFilter').value;
+            currentFilters.status = document.getElementById('statusFilter').value;
+            currentFilters.comparar = document.getElementById('compararFilter').value;
+            
+            loadInitialData();
+        }
+
+        // Atualizar dados em tempo real
+        function updateRealTimeData(data) {
+            if (data.stats) {
+                // Atualizar métricas básicas
+                updateDashboard({ metricas_dia: data.stats, metas: {} });
+            }
+        }
+
+        // Atualizar timestamp
+        function updateLastUpdate() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('pt-BR');
+        }
+
+        // Configurar auto-refresh
+        function setupAutoRefresh() {
+            setInterval(() => {
+                loadInitialData();
+            }, 30000); // 30 segundos
+        }
+
+        // Funções de interação
+        function refreshData() {
+            loadInitialData();
+            updateLastUpdate();
+        }
+
+        function toggleChartType(type) {
+            if (charts.evolucao) {
+                charts.evolucao.config.type = type;
+                charts.evolucao.update();
+            }
+        }
+
+        function toggleTendencia(tipo) {
+            // Implementar mudança de visualização de tendências
+            console.log('Mudando para visualização:', tipo);
+        }
+
+        function exportarRelatorio() {
+            // Implementar exportação
+            alert('Funcionalidade de exportação em desenvolvimento');
+        }
+
+        function configurarAlertas() {
+            const modal = new bootstrap.Modal(document.getElementById('modalAlertas'));
+            modal.show();
+        }
+
+        function salvarAlertas() {
+            const metaDiaria = document.getElementById('alertaMetaDiaria').value;
+            const processosParados = document.getElementById('alertaProcessosParados').value;
+            const email = document.getElementById('alertaEmail').checked;
+            
+            // Implementar salvamento
+            console.log('Salvando alertas:', { metaDiaria, processosParados, email });
+            
+            bootstrap.Modal.getInstance(document.getElementById('modalAlertas')).hide();
+        }
+
+        // Inicializar após carregamento
+        updateLastUpdate();
+    </script>
+</body>
+</html>
