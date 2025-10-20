@@ -1,0 +1,88 @@
+<!-- Modal Criar Processo -->
+<div class="modal fade" id="modalCriarProcesso" tabindex="-1" aria-labelledby="modalCriarProcessoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCriarProcessoLabel">
+                    <i class="fas fa-plus me-2"></i>Criar Novo Processo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formCriarProcesso">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control uppercase-input" id="criarNumero" name="numero" placeholder="Número" required>
+                                <label for="criarNumero"><i class="fas fa-hashtag me-2"></i>Número do Processo *</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                <select class="form-control" id="criarAnalista" name="analista_nome">
+                                    <option value="">Selecione um analista</option>
+                                    {% for analista in analistas %}
+                                    <option value="{{ analista.primeiro_nome }}">{{ analista.primeiro_nome }}</option>
+                                    {% endfor %}
+                                </select>
+                                <label for="criarAnalista"><i class="fas fa-user me-2"></i>Analista (Opcional)</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="criarTitulo" name="titulo" placeholder="Título" required>
+                        <label for="criarTitulo"><i class="fas fa-file-alt me-2"></i>Título do Processo *</label>
+                    </div>
+                    
+                    <div class="form-floating mb-3">
+                        <textarea class="form-control" id="criarDescricao" name="descricao" placeholder="Descrição" style="height: 100px;"></textarea>
+                        <label for="criarDescricao"><i class="fas fa-align-left me-2"></i>Descrição</label>
+                    </div>
+
+                    <!-- Campos adicionais para histórico -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                <select class="form-control" id="criarTipoProcesso" name="tipo_processo">
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="DIGITAL">Digital</option>
+                                    <option value="FISICO">Físico</option>
+                                    <option value="HIBRIDO">Híbrido</option>
+                                </select>
+                                <label for="criarTipoProcesso"><i class="fas fa-cog me-2"></i>Tipo de Processo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control uppercase-input" id="criarSetorOrigem" name="setor_origem" placeholder="Setor de Origem">
+                                <label for="criarSetorOrigem"><i class="fas fa-building me-2"></i>Setor de Origem</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control uppercase-input" id="criarAssunto" name="assunto" placeholder="Assunto">
+                        <label for="criarAssunto"><i class="fas fa-tag me-2"></i>Assunto</label>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>
+                            <strong>Dica:</strong> Se você não atribuir a um analista agora, o processo ficará na lista de "Não Atribuídos" 
+                            e poderá ser distribuído posteriormente usando drag & drop ou distribuição inteligente.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Criar Processo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

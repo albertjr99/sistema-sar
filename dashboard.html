@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="mb-3">Dashboard SAR</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total de Processos</h5>
+                <h3 class="text-primary">{{ total_processos }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Pendentes</h5>
+                <h3 class="text-warning">{{ processos_pendentes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Concluídos</h5>
+                <h3 class="text-success">{{ processos_concluidos }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <h5>Processos Não Atribuídos</h5>
+        <button class="btn btn-primary btn-sm" onclick="novoProcesso()">Novo Processo</button>
+    </div>
+    <div class="card-body">
+        {% if processos_nao_atribuidos %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Número</th>
+                        <th>Título</th>
+                        <th>Prioridade</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in processos_nao_atribuidos %}
+                    <tr>
+                        <td>{{ p.numero }}</td>
+                        <td>{{ p.titulo }}</td>
+                        <td><span class="badge bg-secondary">{{ p.prioridade }}</span></td>
+                        <td>
+                            <select class="form-select form-select-sm d-inline-block w-auto me-2" onchange="atribuirProcesso({{ p.id }}, this.value)">
+                                <option value="">Atribuir para...</option>
+                                {% for a in analistas %}
+                                <option value="{{ a.primeiro_nome }}">{{ a.primeiro_nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">Nenhum processo não atribuído.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function novoProcesso() {
+    const numero = prompt('Número do processo:');
+    const titulo = prompt('Título do processo:');
+    
+    if (numero && titulo) {
+        fetch('/api/processo/criar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({numero, titulo})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erro: ' + data.message);
+            }
+        });
+    }
+}
+
+function atribuirProcesso(id, analista) {
+    if (analista) {
+        fetch(`/api/processo/${id}/atribuir`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({analista_nome: analista})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erro: ' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

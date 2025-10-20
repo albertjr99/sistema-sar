@@ -1,0 +1,775 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico do Setor - Sistema SAR{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="{{ url_for('painel_gerencia') }}">Painel Gerência</a></li>
+<li class="breadcrumb-item active">Histórico</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .badge-status {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .table-hover tbody tr:hover {
+        background-color: rgba(0,123,255,.075);
+    }
+    .btn-action {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .filters-card {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Estilização da tabela */
+    .table th,
+    .table td {
+        border: 1px solid #dee2e6 !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+        padding: 0.75rem 0.5rem !important;
+    }
+    
+    .table thead th {
+        background-color: #343a40 !important;
+        color: white !important;
+        font-weight: 600;
+        border-color: #495057 !important;
+        text-align: center !important;
+    }
+    
+    .table tbody tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    
+    .table tbody tr:hover {
+        background-color: rgba(0,123,255,.1) !important;
+    }
+    
+    /* Bordas mais visíveis */
+    .table-bordered {
+        border: 2px solid #343a40 !important;
+    }
+    
+    .table-bordered th,
+    .table-bordered td {
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    /* Centralizar conteúdo específico */
+    .table .badge {
+        display: inline-block;
+    }
+    
+    .btn-group {
+        justify-content: center;
+        display: flex;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-history me-2 text-primary"></i>Histórico do Setor
+        </h2>
+        <p class="text-muted mb-0">Registro completo de distribuições e conclusões</p>
+    </div>
+    
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('painel_gerencia') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+        <button class="btn btn-primary btn-sm" onclick="adicionarRegistro()">
+            <i class="fas fa-plus me-1"></i> Adicionar Registro Manual
+        </button>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="filters-card">
+    <form method="GET" class="row g-3">
+        <div class="col-md-3">
+            <label for="q" class="form-label">Buscar Interessado</label>
+            <input type="text" class="form-control" id="q" name="q" value="{{ request.args.get('q', '') }}" placeholder="Nome do interessado">
+        </div>
+        <div class="col-md-2">
+            <label for="analista" class="form-label">Analista</label>
+            <select class="form-select" id="analista" name="analista">
+                <option value="">Todos</option>
+                {% for a in analistas %}
+                <option value="{{ a }}" {{ 'selected' if request.args.get('analista') == a else '' }}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="data_inicio" class="form-label">Data Início</label>
+            <input type="date" class="form-control" id="data_inicio" name="data_inicio" value="{{ request.args.get('data_inicio', '') }}">
+        </div>
+        <div class="col-md-2">
+            <label for="data_fim" class="form-label">Data Fim</label>
+            <input type="date" class="form-control" id="data_fim" name="data_fim" value="{{ request.args.get('data_fim', '') }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search me-1"></i>Filtrar
+            </button>
+            <a href="{{ url_for('painel_historico') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-times me-1"></i>Limpar
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Registros
+            <span class="badge bg-primary ms-2">{{ rows|length }}</span>
+        </h5>
+        <small class="text-muted">Página {{ pagina }} de {{ total_paginas }}</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ordem</th>
+                        <th>Analista</th>
+                        <th>Número</th>
+                        <th>Data Distribuição</th>
+                        <th>Data Conclusão</th>
+                        <th>Interessado</th>
+                        <th>Assunto</th>
+                        <th>Setor Origem</th>
+                        <th>Tipo de Processo</th>
+                        <th>Status do Processo</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr id="row-{{ row.id }}">
+                        <td>{{ row.ordem or '-' }}</td>
+                        <td>
+                            {% if row.analista %}
+                                <span class="badge bg-info">{{ row.analista }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ row.numero or '-' }}</strong></td>
+                        <td>
+                            {% if row.data_distribuicao %}
+                                {% set data_parts = row.data_distribuicao.split('-') %}
+                                {% if data_parts|length == 3 %}
+                                    {{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}
+                                {% else %}
+                                    {{ row.data_distribuicao }}
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.data_conclusao %}
+                                {% set data_parts = row.data_conclusao.split('-') %}
+                                {% if data_parts|length == 3 %}
+                                    <span class="badge bg-success">{{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">{{ row.data_conclusao }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Em andamento</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.interessado or '-' }}</td>
+                        <td>{{ row.assunto or '-' }}</td>
+                        <td>{{ row.setor_origem or '-' }}</td>
+                        <td>{{ row.tipo_processo or '-' }}</td>
+                        <td>
+                            {% if row.status_processo %}
+                                <span class="badge bg-info">{{ row.status_processo.replace('_', ' ').title() }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-warning btn-action" 
+                                        onclick="editarRegistro({{ row.id }}, '{{ row.ordem or '' }}', '{{ row.analista or '' }}', '{{ row.numero or '' }}', '{{ row.data_distribuicao or '' }}', '{{ row.data_conclusao or '' }}', '{{ row.interessado or '' }}', '{{ row.assunto or '' }}', '{{ row.setor_origem or '' }}', '{{ row.tipo_processo or '' }}', '{{ row.status_processo or '' }}')"
+                                        title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-action" 
+                                        onclick="excluirRegistro({{ row.id }}, '{{ row.numero or '' }}', '{{ row.analista or '' }}')"
+                                        title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Paginação -->
+    {% if total_paginas > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Navegação de páginas">
+            <ul class="pagination justify-content-center mb-0">
+                {% if pagina > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?pagina={{ pagina - 1 }}&{{ request.query_string.decode() }}">Anterior</a>
+                    </li>
+                {% endif %}
+                
+                {% for p in range(1, total_paginas + 1) %}
+                    {% if p == pagina %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ p }}</span>
+                        </li>
+                    {% elif p <= 3 or p >= total_paginas - 2 or (p >= pagina - 1 and p <= pagina + 1) %}
+                        <li class="page-item">
+                            <a class="page-link" href="?pagina={{ p }}&{{ request.query_string.decode() }}">{{ p }}</a>
+                        </li>
+                    {% elif p == 4 and pagina > 6 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% elif p == total_paginas - 3 and pagina < total_paginas - 5 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if pagina < total_paginas %}
+                    <li class="page-item">
+                        <a class="page-link" href="?pagina={{ pagina + 1 }}&{{ request.query_string.decode() }}">Próxima</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal Editar Registro -->
+<div class="modal fade" id="modalEditarRegistro" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Registro do Histórico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarRegistro">
+                    <input type="hidden" id="editRegistroId">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editOrdem" class="form-label">Ordem</label>
+                                <input type="number" class="form-control" id="editOrdem">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editAnalista" class="form-label">Analista</label>
+                                <input type="text" class="form-control" id="editAnalista">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editNumero" class="form-label">Número do Processo</label>
+                                <input type="text" class="form-control" id="editNumero">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editDataDistribuicao" class="form-label">Data Distribuição</label>
+                                <input type="date" class="form-control" id="editDataDistribuicao">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editDataConclusao" class="form-label">Data Conclusão</label>
+                                <input type="date" class="form-control" id="editDataConclusao">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editInteressado" class="form-label">Interessado</label>
+                                <input type="text" class="form-control" id="editInteressado">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editAssunto" class="form-label">Assunto</label>
+                        <textarea class="form-control" id="editAssunto" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editSetorOrigem" class="form-label">Setor Origem</label>
+                                <input type="text" class="form-control" id="editSetorOrigem">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editTipoProcesso" class="form-label">Tipo de Processo</label>
+                                <select class="form-select" id="editTipoProcesso">
+                                    <option value="">Selecionar tipo</option>
+                                    <option value="FÍSICO">FÍSICO</option>
+                                    <option value="DIGITAL">DIGITAL</option>
+                                    <option value="HÍBRIDO">HÍBRIDO</option>
+                                    <option value="JUDICIAL">JUDICIAL</option>
+                                    <option value="EDOCS">EDOCS</option>
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editStatusProcesso" class="form-label">Status do Processo</label>
+                        <select class="form-select" id="editStatusProcesso">
+                            <option value="">Selecionar status</option>
+                            <option value="novo">Novo</option>
+                            <option value="em_analise">Em Análise</option>
+                            <option value="aguardando_chamado">Aguardando Chamado</option>
+                            <option value="aguardando_orientacao">Aguardando Orientação</option>
+                            <option value="sobrestado">Sobrestado</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarEdicaoRegistro()">
+                    <i class="fas fa-save me-1"></i>Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Registro -->
+<div class="modal fade" id="modalNovoRegistro" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Novo Registro no Histórico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Campos obrigatórios:</strong> Analista, Número do Processo e Interessado
+                </div>
+                <form id="formNovoRegistro">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoAnalista" class="form-label">Analista *</label>
+                                <select class="form-select" id="novoAnalista" required>
+                                    <option value="">Selecione o analista</option>
+                                    <option value="Bruno">Bruno</option>
+                                    <option value="Vanessa">Vanessa</option>
+                                    <option value="Alessandro">Alessandro</option>
+                                    <option value="Carmen">Carmen</option>
+                                    <option value="Zenilda">Zenilda</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoNumero" class="form-label">Número do Processo *</label>
+                                <input type="text" class="form-control" id="novoNumero" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoDataDistribuicao" class="form-label">Data Distribuição</label>
+                                <input type="date" class="form-control" id="novoDataDistribuicao">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoDataConclusao" class="form-label">Data Conclusão</label>
+                                <input type="date" class="form-control" id="novoDataConclusao">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoInteressado" class="form-label">Interessado *</label>
+                                <input type="text" class="form-control" id="novoInteressado" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoAssunto" class="form-label">Assunto</label>
+                                <textarea class="form-control" id="novoAssunto" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoSetorOrigem" class="form-label">Setor Origem</label>
+                                <input type="text" class="form-control" id="novoSetorOrigem" style="text-transform: uppercase;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="novoTipoProcesso" class="form-label">Tipo de Processo</label>
+                                <select class="form-select" id="novoTipoProcesso">
+                                    <option value="">Selecionar tipo</option>
+                                    <option value="FÍSICO">FÍSICO</option>
+                                    <option value="DIGITAL">DIGITAL</option>
+                                    <option value="HÍBRIDO">HÍBRIDO</option>
+                                    <option value="JUDICIAL">JUDICIAL</option>
+                                    <option value="EDOCS">EDOCS</option>
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="novoStatusProcesso" class="form-label">Status do Processo</label>
+                        <select class="form-select" id="novoStatusProcesso">
+                            <option value="">Selecionar status</option>
+                            <option value="novo">Novo</option>
+                            <option value="em_analise">Em Análise</option>
+                            <option value="aguardando_chamado">Aguardando Chamado</option>
+                            <option value="aguardando_orientacao">Aguardando Orientação</option>
+                            <option value="sobrestado">Sobrestado</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarNovoRegistro()">
+                    <i class="fas fa-plus me-1"></i>Adicionar Registro Manual
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Função para editar registro - IMPLEMENTADA
+    function editarRegistro(id, ordem, analista, numero, dataDistribuicao, dataConclusao, interessado, assunto, setorOrigem, tipoProcesso, statusProcesso) {
+        console.log('Editando registro:', {id, ordem, analista, numero, dataDistribuicao, dataConclusao, interessado, assunto, setorOrigem, tipoProcesso, statusProcesso});
+        
+        // Preencher o formulário de edição
+        document.getElementById('editRegistroId').value = id;
+        document.getElementById('editOrdem').value = ordem || '';
+        document.getElementById('editAnalista').value = analista || '';
+        document.getElementById('editNumero').value = numero || '';
+        document.getElementById('editDataDistribuicao').value = dataDistribuicao || '';
+        document.getElementById('editDataConclusao').value = dataConclusao || '';
+        document.getElementById('editInteressado').value = interessado || '';
+        document.getElementById('editAssunto').value = assunto || '';
+        document.getElementById('editSetorOrigem').value = setorOrigem || '';
+        document.getElementById('editTipoProcesso').value = tipoProcesso || '';
+        document.getElementById('editStatusProcesso').value = statusProcesso || '';
+        
+        // Mostrar o modal
+        const modal = new bootstrap.Modal(document.getElementById('modalEditarRegistro'));
+        modal.show();
+    }
+
+    // Função para salvar edição do registro
+    async function salvarEdicaoRegistro() {
+        const id = document.getElementById('editRegistroId').value;
+        const data = {
+            ordem: document.getElementById('editOrdem').value || null,
+            analista: document.getElementById('editAnalista').value || '',
+            numero: document.getElementById('editNumero').value || '',
+            data_distribuicao: document.getElementById('editDataDistribuicao').value || '',
+            data_conclusao: document.getElementById('editDataConclusao').value || '',
+            interessado: document.getElementById('editInteressado').value || '',
+            assunto: document.getElementById('editAssunto').value || '',
+            setor_origem: document.getElementById('editSetorOrigem').value || '',
+            tipo_processo: document.getElementById('editTipoProcesso').value || '',
+            status_processo: document.getElementById('editStatusProcesso').value || ''
+        };
+
+        try {
+            showLoading();
+            
+            const response = await fetch(`/api/historico/update/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            hideLoading();
+            
+            if (result.success) {
+                showToast('success', 'Sucesso!', 'Registro atualizado com sucesso');
+                bootstrap.Modal.getInstance(document.getElementById('modalEditarRegistro')).hide();
+                
+                // Recarregar a página após um pequeno delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showToast('error', 'Erro', result.message || 'Falha ao atualizar registro');
+            }
+            
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao salvar:', error);
+            showToast('error', 'Erro', 'Falha ao salvar alterações');
+        }
+    }
+
+    // Função para adicionar novo registro
+    function adicionarRegistro() {
+        document.getElementById('formNovoRegistro').reset();
+        
+        // Definir data atual como padrão para distribuição
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById('novoDataDistribuicao').value = hoje;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalNovoRegistro'));
+        modal.show();
+    }
+
+    // Função para salvar novo registro
+    async function salvarNovoRegistro() {
+        const analista = document.getElementById('novoAnalista').value.trim();
+        const numero = document.getElementById('novoNumero').value.trim();
+        const interessado = document.getElementById('novoInteressado').value.trim();
+
+        if (!analista || !numero || !interessado) {
+            showToast('warning', 'Atenção', 'Analista, número do processo e interessado são obrigatórios');
+            return;
+        }
+
+        const data = {
+            analista: analista,
+            numero: numero,
+            data_distribuicao: document.getElementById('novoDataDistribuicao').value || '',
+            data_conclusao: document.getElementById('novoDataConclusao').value || '',
+            interessado: interessado,
+            assunto: document.getElementById('novoAssunto').value || '',
+            setor_origem: document.getElementById('novoSetorOrigem').value || '',
+            tipo_processo: document.getElementById('novoTipoProcesso').value || '',
+            status_processo: document.getElementById('novoStatusProcesso').value || ''
+        };
+
+        console.log('Dados para envio:', data);
+
+        try {
+            showLoading();
+            
+            const response = await fetch('/api/historico/add', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            hideLoading();
+            
+            console.log('Resposta da API:', result);
+            
+            if (result.success) {
+                showToast('success', 'Sucesso!', 'Registro adicionado com sucesso');
+                bootstrap.Modal.getInstance(document.getElementById('modalNovoRegistro')).hide();
+                
+                // Recarregar a página após um pequeno delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showToast('error', 'Erro', result.message || 'Falha ao adicionar registro');
+            }
+            
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao adicionar:', error);
+            showToast('error', 'Erro', `Falha ao adicionar registro: ${error.message}`);
+        }
+    }
+
+    // Função CORRIGIDA para excluir registro
+    async function excluirRegistro(id, numero, analista) {
+        const confirmacao = confirm(
+            `Tem certeza que deseja excluir este registro?\n\n` +
+            `Processo: ${numero || 'N/A'}\n` +
+            `Analista: ${analista || 'N/A'}\n\n` +
+            `Esta ação não pode ser desfeita.`
+        );
+
+        if (!confirmacao) {
+            return;
+        }
+
+        try {
+            showLoading();
+            
+            const response = await fetch(`/api/historico/delete/${id}`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            hideLoading();
+            
+            if (result.success) {
+                showToast('success', 'Sucesso!', result.message || 'Registro excluído com sucesso');
+                
+                // Remover a linha da tabela IMEDIATAMENTE
+                const row = document.getElementById(`row-${id}`);
+                if (row) {
+                    row.style.background = '#ffebee';
+                    row.style.transition = 'all 0.3s ease';
+                    setTimeout(() => {
+                        row.remove();
+                    }, 300);
+                }
+                
+                // Atualizar contador de registros
+                const badge = document.querySelector('.card-header .badge');
+                if (badge) {
+                    const currentCount = parseInt(badge.textContent) || 0;
+                    badge.textContent = Math.max(0, currentCount - 1);
+                }
+                
+                // Se não sobrou nenhuma linha, mostrar mensagem
+                setTimeout(() => {
+                    const tbody = document.querySelector('tbody');
+                    if (tbody && tbody.children.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum registro encontrado</td></tr>';
+                    }
+                }, 400);
+                
+            } else {
+                showToast('error', 'Erro', result.message || 'Falha ao excluir registro');
+            }
+            
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao excluir registro:', error);
+            showToast('error', 'Erro', `Falha ao excluir registro: ${error.message}`);
+        }
+    }
+
+    // Outras funções auxiliares...
+    function showLoading() {
+        if (!document.getElementById('loadingOverlay')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'loadingOverlay';
+            overlay.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                           background: rgba(0,0,0,0.5); z-index: 9999; display: flex; 
+                           align-items: center; justify-content: center;">
+                    <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-2">Processando...</div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        document.getElementById('loadingOverlay').style.display = 'block';
+    }
+
+    function hideLoading() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    function showToast(type, title, message) {
+        if (!document.getElementById('toastContainer')) {
+            const container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000;';
+            document.body.appendChild(container);
+        }
+
+        const toastId = 'toast_' + Date.now();
+        const bgColor = type === 'success' ? 'bg-success' : 
+                       type === 'error' ? 'bg-danger' : 
+                       type === 'warning' ? 'bg-warning' : 'bg-info';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgColor} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <strong>${title}</strong><br>
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('toastContainer').insertAdjacentHTML('beforeend', toastHtml);
+        
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+        toast.show();
+
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+</script>
+{% endblock %}

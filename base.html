@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema SAR{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        .sidebar {
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        
+        /* Estilos para notificações na barra superior */
+        .top-notification-bell {
+            position: relative;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #ffffff;
+            transition: color 0.3s ease;
+            margin-left: 15px;
+        }
+        .top-notification-bell:hover {
+            color: #f8f9fa;
+        }
+        .top-notification-bell.has-notifications {
+            color: #ffc107;
+            animation: ring 2s infinite;
+        }
+        .top-notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        @keyframes ring {
+            0%, 20%, 50%, 80%, 100% { transform: rotate(0deg); }
+            10% { transform: rotate(10deg); }
+            30% { transform: rotate(-10deg); }
+            60% { transform: rotate(5deg); }
+            90% { transform: rotate(-5deg); }
+        }
+        
+        /* Dropdown de notificações melhorado */
+        .top-notifications-dropdown {
+            min-width: 420px;
+            max-width: 500px;
+            max-height: 500px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .notifications-header {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .notifications-body {
+            max-height: 400px;
+            overflow-y: auto;
+            background: white;
+        }
+        
+        .notification-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f1f3f4;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .notification-item:hover {
+            background-color: #f8f9fa;
+        }
+        .notification-item.unread {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .notification-item.read {
+            background-color: #fafafa;
+            opacity: 0.8;
+        }
+        
+        .notification-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .notification-item:hover .notification-close {
+            opacity: 1;
+        }
+        .notification-close:hover {
+            background: #c82333;
+        }
+        
+        .notification-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .notification-time i {
+            margin-right: 5px;
+        }
+        
+        .notifications-footer {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .btn-clear-all {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .btn-clear-all:hover {
+            background: #c82333;
+        }
+        
+        .btn-mark-all-read {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .btn-mark-all-read:hover {
+            background: #218838;
+        }
+        
+        /* Scrollbar personalizada */
+        .notifications-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        .notifications-body::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .notifications-body::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        .notifications-body::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Superior -->
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-building me-2"></i>Sistema SAR
+            </a>
+            
+            {% if current_user %}
+            <div class="d-flex align-items-center text-white">
+                <span class="me-2">
+                    <i class="fas fa-user-circle me-1"></i>
+                    {{ current_user.primeiro_nome }}
+                    <small class="text-muted">({{ current_user.papel|title }})</small>
+                </span>
+                
+                <!-- Sino de Notificações na Barra Superior -->
+                <div class="dropdown">
+                    <div class="top-notification-bell" id="topNotificationBell" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-bell"></i>
+                        <span class="top-notification-badge" id="topNotificationBadge" style="display: none;">0</span>
+                    </div>
+                    <div class="dropdown-menu dropdown-menu-end top-notifications-dropdown" id="topNotificationsDropdown">
+                        <!-- Header das Notificações -->
+                        <div class="notifications-header">
+                            <div>
+                                <strong><i class="fas fa-bell me-2"></i>Notificações</strong>
+                            </div>
+                        </div>
+                        
+                        <!-- Corpo das Notificações com Scroll -->
+                        <div class="notifications-body" id="topNotificationsList">
+                            <div class="text-center p-4 text-muted">
+                                <i class="fas fa-bell-slash fa-2x mb-3"></i>
+                                <div>Nenhuma notificação</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer com Botões de Ação -->
+                        <div class="notifications-footer">
+                            <button class="btn-mark-all-read" onclick="marcarTodasNotificacoesLidas()">
+                                <i class="fas fa-check me-1"></i>Marcar todas como lidas
+                            </button>
+                            <button class="btn-clear-all" onclick="excluirTodasNotificacoes()">
+                                <i class="fas fa-trash me-1"></i>Excluir todas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm ms-3">
+                    <i class="fas fa-sign-out-alt me-1"></i>Sair
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar p-3">
+                {% if nav_items %}
+                <nav class="nav flex-column">
+                    {% for item in nav_items %}
+                    <a class="nav-link {% if request.endpoint == item.endpoint %}active{% endif %}" 
+                       href="{{ item.url }}" {% if item.tooltip %}title="{{ item.tooltip }}"{% endif %}>
+                        <i class="{{ item.icon }} me-2"></i>{{ item.name }}
+                    </a>
+                    {% endfor %}
+                </nav>
+                {% endif %}
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10">
+                <!-- Breadcrumb -->
+                {% if self.breadcrumb_items() %}
+                <nav aria-label="breadcrumb" class="mt-3">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="{{ url_for('index') }}">
+                                <i class="fas fa-home"></i> Início
+                            </a>
+                        </li>
+                        {% block breadcrumb_items %}{% endblock %}
+                    </ol>
+                </nav>
+                {% endif %}
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="mt-3">
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                <!-- Main Content -->
+                <main class="py-3">
+                    {% block content %}{% endblock %}
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Sistema de Notificações na Barra Superior
+        let topNotificationsInterval;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar notificações na barra superior
+            carregarNotificacoesBarra();
+            
+            // Atualizar a cada 30 segundos
+            topNotificationsInterval = setInterval(carregarNotificacoesBarra, 30000);
+        });
+        
+        // Carregar notificações para a barra superior
+        async function carregarNotificacoesBarra() {
+            try {
+                const response = await fetch('/api/notificacoes/listar');
+                const data = await response.json();
+                
+                if (data.success) {
+                    atualizarNotificacoesBarra(data.notificacoes, data.nao_lidas);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar notificações:', error);
+            }
+        }
+        
+        // Atualizar interface das notificações na barra
+        function atualizarNotificacoesBarra(notificacoes, naoLidas) {
+            const bell = document.getElementById('topNotificationBell');
+            const badge = document.getElementById('topNotificationBadge');
+            const lista = document.getElementById('topNotificationsList');
+            
+            // Atualizar badge
+            if (naoLidas > 0) {
+                badge.textContent = naoLidas > 99 ? '99+' : naoLidas;
+                badge.style.display = 'flex';
+                bell.classList.add('has-notifications');
+            } else {
+                badge.style.display = 'none';
+                bell.classList.remove('has-notifications');
+            }
+            
+            // Atualizar lista
+            if (notificacoes.length === 0) {
+                lista.innerHTML = `
+                    <div class="text-center p-4 text-muted">
+                        <i class="fas fa-bell-slash fa-2x mb-3"></i>
+                        <div>Nenhuma notificação</div>
+                    </div>
+                `;
+            } else {
+                lista.innerHTML = notificacoes.map(notif => `
+                    <div class="notification-item ${notif.lida ? 'read' : 'unread'}" data-id="${notif.id}">
+                        <button class="notification-close" onclick="excluirNotificacao(${notif.id})" title="Excluir notificação">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        
+                        <div class="fw-bold text-primary">${notif.titulo}</div>
+                        <div class="small text-muted mb-2">${notif.mensagem}</div>
+                        
+                        <div class="notification-time">
+                            <i class="fas fa-clock"></i>
+                            ${formatarDataHora(notif.criado_em)}
+                        </div>
+                        
+                        ${notif.origem_nome ? `
+                            <div class="small text-info mt-1">
+                                <i class="fas fa-user me-1"></i>Por: ${notif.origem_nome}
+                            </div>
+                        ` : ''}
+                        
+                        ${!notif.lida ? `
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="marcarNotificacaoLida(${notif.id})">
+                                <i class="fas fa-check me-1"></i>Marcar como lida
+                            </button>
+                        ` : ''}
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // Formatear data e hora para exibição
+        function formatarDataHora(dataString) {
+            try {
+                const data = new Date(dataString);
+                const agora = new Date();
+                const diffMs = agora - data;
+                const diffMinutos = Math.floor(diffMs / 60000);
+                const diffHoras = Math.floor(diffMinutos / 60);
+                const diffDias = Math.floor(diffHoras / 24);
+                
+                if (diffMinutos < 1) {
+                    return 'Agora mesmo';
+                } else if (diffMinutos < 60) {
+                    return `${diffMinutos} min atrás`;
+                } else if (diffHoras < 24) {
+                    return `${diffHoras}h atrás`;
+                } else if (diffDias < 7) {
+                    return `${diffDias} dias atrás`;
+                } else {
+                    return data.toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
+            } catch (error) {
+                return 'Data inválida';
+            }
+        }
+        
+        // Marcar notificação individual como lida
+        async function marcarNotificacaoLida(notifId) {
+            try {
+                const response = await fetch(`/api/notificacoes/marcar-lida/${notifId}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Atualizar visualmente
+                    const item = document.querySelector(`[data-id="${notifId}"]`);
+                    if (item) {
+                        item.classList.remove('unread');
+                        item.classList.add('read');
+                        const botao = item.querySelector('.btn-outline-primary');
+                        if (botao) botao.remove();
+                    }
+                    
+                    // Recarregar notificações
+                    carregarNotificacoesBarra();
+                }
+            } catch (error) {
+                console.error('Erro ao marcar notificação como lida:', error);
+            }
+        }
+        
+        // Marcar todas as notificações como lidas
+        async function marcarTodasNotificacoesLidas() {
+            try {
+                const response = await fetch('/api/notificacoes/marcar-todas-lidas', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    carregarNotificacoesBarra();
+                    showToast('success', 'Sucesso', 'Todas as notificações foram marcadas como lidas');
+                }
+            } catch (error) {
+                console.error('Erro ao marcar todas como lidas:', error);
+            }
+        }
+        
+        // Excluir notificação individual
+        async function excluirNotificacao(notifId) {
+            try {
+                const response = await fetch(`/api/notificacoes/excluir/${notifId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Remover visualmente com animação
+                    const item = document.querySelector(`[data-id="${notifId}"]`);
+                    if (item) {
+                        item.style.transition = 'all 0.3s ease';
+                        item.style.opacity = '0';
+                        item.style.transform = 'translateX(100%)';
+                        setTimeout(() => item.remove(), 300);
+                    }
+                    
+                    // Recarregar notificações
+                    setTimeout(carregarNotificacoesBarra, 350);
+                }
+            } catch (error) {
+                console.error('Erro ao excluir notificação:', error);
+            }
+        }
+        
+        // Excluir todas as notificações
+        async function excluirTodasNotificacoes() {
+            if (!confirm('Tem certeza que deseja excluir TODAS as notificações? Esta ação não pode ser desfeita.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/notificacoes/excluir-todas', {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    carregarNotificacoesBarra();
+                    showToast('success', 'Sucesso', 'Todas as notificações foram excluídas');
+                }
+            } catch (error) {
+                console.error('Erro ao excluir todas as notificações:', error);
+            }
+        }
+        
+        // Sistema básico de toast (se não existir)
+        function showToast(type, title, message, duration = 3000) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 70px;
+                right: 20px;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 9999;
+                max-width: 350px;
+                opacity: 0;
+                transform: translateX(100%);
+                transition: all 0.3s ease;
+            `;
+            
+            toast.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+                <div style="font-size: 0.9em;">${message}</div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // Limpar intervalo ao sair da página
+        window.addEventListener('beforeunload', function() {
+            if (topNotificationsInterval) clearInterval(topNotificationsInterval);
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

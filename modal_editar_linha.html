@@ -1,0 +1,103 @@
+<div class="modal fade" id="modalEditLinha" tabindex="-1" aria-labelledby="modalEditLinhaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalEditLinhaLabel">Editar Processo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formEditLinha">
+          <input type="hidden" name="id">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label">Ordem</label>
+              <input type="text" class="form-control" name="ordem">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Analista</label>
+              <input type="text" class="form-control" name="analista">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Número</label>
+              <input type="text" class="form-control" name="numero">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Data Distribuição</label>
+              <input type="date" class="form-control" name="data_distribuicao">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Data Conclusão</label>
+              <input type="date" class="form-control" name="data_conclusao">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Interessado</label>
+              <input type="text" class="form-control" name="interessado">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Assunto</label>
+              <input type="text" class="form-control" name="assunto">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Setor Origem</label>
+              <input type="text" class="form-control" name="setor_origem">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Setor Destino</label>
+              <input type="text" class="form-control" name="setor_destino">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="submitEditLinha()">Salvar alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openEditModal(data) {
+  const form = document.getElementById('formEditLinha');
+  for (let key in data) {
+    if (form.elements[key]) {
+      form.elements[key].value = data[key];
+    }
+  }
+  const modal = new bootstrap.Modal(document.getElementById('modalEditLinha'));
+  modal.show();
+}
+
+function submitEditLinha() {
+  const form = document.getElementById('formEditLinha');
+  const data = Object.fromEntries(new FormData(form).entries());
+  if (!confirm('Tem certeza que deseja alterar este processo?')) return;
+
+  fetch('/api/historico/update/' + data.id, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      location.reload();
+    } else {
+      alert('Erro ao atualizar linha.');
+    }
+  });
+}
+
+function editRowFromTable(btn) {
+  const row = btn.closest('tr');
+  const data = {};
+  for (const td of row.children) {
+    const name = td.dataset.name;
+    if (name) {
+      data[name] = td.innerText.trim();
+    }
+  }
+  data.id = row.dataset.id;
+  openEditModal(data);
+}
+</script>

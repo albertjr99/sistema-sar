@@ -1,0 +1,655 @@
+{% extends 'base.html' %}
+
+{% block title %}Meus Processos - Sistema SAR{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Meus Processos</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-tasks me-2 text-primary"></i>Meus Processos
+        </h2>
+        <p class="text-muted mb-0">
+            Gerencie seus processos atribuídos - {{ current_user.primeiro_nome }}
+        </p>
+    </div>
+    
+    <!-- Navegação Rápida de Ambiente -->
+    <div class="d-flex gap-2">
+        {% if current_user.papel in ['gerente', 'admin'] %}
+        <a href="{{ url_for('painel_gerencia') }}" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-tachometer-alt me-1"></i>
+            <span class="d-none d-md-inline">Ir para </span>Gerência
+        </a>
+        <a href="{{ url_for('central_estatisticas') }}" class="btn btn-outline-success btn-sm">
+            <i class="fas fa-chart-line me-1"></i>
+            <span class="d-none d-md-inline">Ver </span>Estatísticas
+        </a>
+        {% endif %}
+        <button class="btn btn-outline-secondary btn-sm" onclick="refreshPage()">
+            <i class="fas fa-sync-alt me-1"></i>
+            <span class="d-none d-md-inline">Atualizar</span>
+        </button>
+    </div>
+</div>
+
+<!-- Estatísticas Resumidas -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-1">Total</h5>
+                        <h3 class="text-primary mb-0">{{ stats.total }}</h3>
+                    </div>
+                    <i class="fas fa-list-alt text-primary" style="font-size: 2rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-1">Novos</h5>
+                        <h3 class="text-info mb-0">{{ stats.novo }}</h3>
+                    </div>
+                    <i class="fas fa-plus-circle text-info" style="font-size: 2rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-1">Em Análise</h5>
+                        <h3 class="text-warning mb-0">{{ stats.em_analise }}</h3>
+                    </div>
+                    <i class="fas fa-cog text-warning" style="font-size: 2rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-1">Concluídos</h5>
+                        <h3 class="text-success mb-0">{{ stats.concluido }}</h3>
+                    </div>
+                    <i class="fas fa-check-circle text-success" style="font-size: 2rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros e Controles -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar processo...">
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <select class="form-select" id="statusFilter">
+                    <option value="">Selecionar</option>
+                    <option value="em_analise">Em Análise</option>
+                    <option value="concluido">Concluído</option>
+                    <option value="aguardando_chamado">Aguardando Chamado</option>
+                    <option value="sobrestado">Sobrestado</option>
+                    <option value="aguardando_orientacao">Aguardando Orientação</option>
+                </select>
+            </div>
+            
+            <div class="col-md-5"></div>
+            
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="limparFiltros()">
+                    <i class="fas fa-times me-1"></i>Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Processos -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-folder-open me-2"></i>Processos Atribuídos
+        </h5>
+        
+        <div class="d-flex gap-2">
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="viewMode" id="viewList" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="viewList">
+                    <i class="fas fa-list"></i>
+                </label>
+                
+                <input type="radio" class="btn-check" name="viewMode" id="viewCards" autocomplete="off">
+                <label class="btn btn-outline-primary" for="viewCards">
+                    <i class="fas fa-th"></i>
+                </label>
+            </div>
+            
+            <span class="badge bg-secondary d-flex align-items-center">
+                <span id="totalVisible">{{ processos|length }}</span> processo(s)
+            </span>
+        </div>
+    </div>
+    
+    <div class="card-body p-0">
+        <div id="processosList">
+            {% if processos %}
+            <!-- Vista Lista -->
+            <div id="listView" class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Número</th>
+                            <th>Título</th>
+                            <th>Status</th>
+                            <th>Criado em</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in processos %}
+                        <tr class="processo-row" 
+                            data-numero="{{ p.numero }}"
+                            data-titulo="{{ p.titulo }}"
+                            data-status="{{ p.status }}">
+                            <td>
+                                <span class="fw-bold">{{ p.numero }}</span>
+                            </td>
+                            <td>
+                                <div>
+                                    <span class="fw-semibold">{{ p.titulo }}</span>
+                                    {% if p.descricao %}
+                                    <br><small class="text-muted">{{ p.descricao[:100] }}{% if p.descricao|length > 100 %}...{% endif %}</small>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm status-selector" 
+                                        onchange="alterarStatus({{ p.id }}, this.value)"
+                                        data-processo-id="{{ p.id }}">
+                                    <option value="">Selecionar</option>
+                                    <option value="em_analise" {% if p.status == 'em_analise' %}selected{% endif %}>Em Análise</option>
+                                    <option value="concluido" {% if p.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                                    <option value="aguardando_chamado" {% if p.status == 'aguardando_chamado' %}selected{% endif %}>Aguardando Chamado</option>
+                                    <option value="sobrestado" {% if p.status == 'sobrestado' %}selected{% endif %}>Sobrestado</option>
+                                    <option value="aguardando_orientacao" {% if p.status == 'aguardando_orientacao' %}selected{% endif %}>Aguardando Orientação</option>
+                                </select>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ p.criado_em[:10] if p.criado_em else '-' }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button class="btn btn-outline-primary" 
+                                            onclick="verDetalhes({{ p.id }})"
+                                            title="Ver detalhes">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    <button class="btn btn-outline-secondary" 
+                                            onclick="adicionarObservacao({{ p.id }})"
+                                            title="Adicionar observação">
+                                        <i class="fas fa-comment"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Vista Cards -->
+            <div id="cardsView" class="p-3" style="display: none;">
+                <div class="row g-3">
+                    {% for p in processos %}
+                    <div class="col-md-6 col-lg-4 processo-card-container" 
+                         data-numero="{{ p.numero }}"
+                         data-titulo="{{ p.titulo }}"
+                         data-status="{{ p.status }}">
+                        
+                        <div class="card h-100 processo-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0 fw-bold">{{ p.numero }}</h6>
+                                    <span class="badge 
+                                        {% if p.status == 'novo' %}bg-secondary
+                                        {% elif p.status == 'em_analise' %}bg-warning
+                                        {% elif p.status == 'aguardando' %}bg-info
+                                        {% else %}bg-success{% endif %}">
+                                        {{ p.status.replace('_', ' ').title() }}
+                                    </span>
+                                </div>
+                                
+                                <h6 class="text-primary mb-2">{{ p.titulo }}</h6>
+                                
+                                {% if p.descricao %}
+                                <p class="card-text text-muted small mb-2">
+                                    {{ p.descricao[:100] }}{% if p.descricao|length > 100 %}...{% endif %}
+                                </p>
+                                {% endif %}
+                                
+                                <div class="mb-3">
+                                    <small class="text-muted">{{ p.criado_em[:10] if p.criado_em else '-' }}</small>
+                                </div>
+                                
+                                <select class="form-select form-select-sm mb-2" 
+                                        onchange="alterarStatus({{ p.id }}, this.value)">
+                                    <option value="">Selecionar</option>
+                                    <option value="em_analise" {% if p.status == 'em_analise' %}selected{% endif %}>Em Análise</option>
+                                    <option value="concluido" {% if p.status == 'concluido' %}selected{% endif %}>Concluído</option>
+                                    <option value="aguardando_chamado" {% if p.status == 'aguardando_chamado' %}selected{% endif %}>Aguardando Chamado</option>
+                                    <option value="sobrestado" {% if p.status == 'sobrestado' %}selected{% endif %}>Sobrestado</option>
+                                    <option value="aguardando_orientacao" {% if p.status == 'aguardando_orientacao' %}selected{% endif %}>Aguardando Orientação</option>
+                                </select>
+                                
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                            onclick="verDetalhes({{ p.id }})">
+                                        <i class="fas fa-eye me-1"></i>Detalhes
+                                    </button>
+                                    
+                                    <button class="btn btn-outline-secondary btn-sm" 
+                                            onclick="adicionarObservacao({{ p.id }})"
+                                            title="Observação">
+                                        <i class="fas fa-comment"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <!-- Estado Vazio -->
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">Nenhum processo atribuído</h4>
+                <p class="text-muted">Você ainda não possui processos atribuídos.</p>
+                
+                {% if current_user.papel in ['gerente', 'admin'] %}
+                <a href="{{ url_for('painel_gerencia') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Ir para Gerência
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Detalhes do Processo -->
+<div class="modal fade" id="modalDetalhes" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Processo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalDetalhesContent">
+                <!-- Preenchido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Observações -->
+<div class="modal fade" id="modalObservacao" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Adicionar Observação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <textarea class="form-control" id="observacaoText" rows="4" placeholder="Digite sua observação..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarObservacao()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Sistema de Chat para Analistas -->
+<script src="{{ url_for('static', filename='js/notifications-chat.js') }}"></script>
+<script>
+let processoAtualObservacao = null;
+let chartPerformance = null;
+let chartStatus = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== PAINEL DO ANALISTA CARREGADO ===');
+    
+    // Configurar filtros
+    setupFiltros();
+    
+    // Configurar mudança de visualização
+    setupViewMode();
+});
+
+// Configurar filtros
+function setupFiltros() {
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', filtrarProcessos);
+    }
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filtrarProcessos);
+    }
+}
+
+// Configurar modo de visualização
+function setupViewMode() {
+    const viewList = document.getElementById('viewList');
+    const viewCards = document.getElementById('viewCards');
+    const listView = document.getElementById('listView');
+    const cardsView = document.getElementById('cardsView');
+    
+    if (viewList && viewCards && listView && cardsView) {
+        viewList.addEventListener('change', function() {
+            if (this.checked) {
+                listView.style.display = 'block';
+                cardsView.style.display = 'none';
+            }
+        });
+        
+        viewCards.addEventListener('change', function() {
+            if (this.checked) {
+                listView.style.display = 'none';
+                cardsView.style.display = 'block';
+            }
+        });
+    }
+}
+
+// Filtrar processos
+function filtrarProcessos() {
+    const searchTerm = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+    const statusFilter = document.getElementById('statusFilter')?.value || '';
+    
+    // Filtrar na vista de lista
+    const rows = document.querySelectorAll('.processo-row');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const numero = row.dataset.numero.toLowerCase();
+        const titulo = row.dataset.titulo.toLowerCase();
+        const status = row.dataset.status;
+        
+        const matchesSearch = numero.includes(searchTerm) || titulo.includes(searchTerm);
+        const matchesStatus = !statusFilter || status === statusFilter;
+        
+        if (matchesSearch && matchesStatus) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Filtrar na vista de cards
+    const cards = document.querySelectorAll('.processo-card-container');
+    cards.forEach(card => {
+        const numero = card.dataset.numero.toLowerCase();
+        const titulo = card.dataset.titulo.toLowerCase();
+        const status = card.dataset.status;
+        
+        const matchesSearch = numero.includes(searchTerm) || titulo.includes(searchTerm);
+        const matchesStatus = !statusFilter || status === statusFilter;
+        
+        if (matchesSearch && matchesStatus) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    // Atualizar contador
+    const totalVisible = document.getElementById('totalVisible');
+    if (totalVisible) {
+        totalVisible.textContent = visibleCount;
+    }
+}
+
+// Limpar filtros
+function limparFiltros() {
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    if (searchInput) searchInput.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
+    filtrarProcessos();
+}
+
+// Função para alterar status (melhorada com notificação)
+async function alterarStatus(processoId, novoStatus) {
+    if (!novoStatus) {
+        showToast('warning', 'Atenção', 'Selecione um status');
+        return;
+    }
+    
+    try {
+        showToast('info', 'Atualizando...', 'Alterando status do processo', 2000);
+        
+        const response = await fetch(`/api/processo/${processoId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: novoStatus })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Sucesso!', 'Status atualizado com sucesso');
+            
+            // Atualizar visualmente o status na interface
+            updateStatusVisual(processoId, novoStatus);
+            
+            // Se concluído, destacar com animação
+            if (novoStatus === 'concluido') {
+                highlightCompletedProcess(processoId);
+            }
+        } else {
+            showToast('error', 'Erro', data.message || 'Falha ao atualizar status');
+        }
+    } catch (error) {
+        console.error('Erro na atualização:', error);
+        showToast('error', 'Erro', 'Falha na conexão ao atualizar status');
+    }
+}
+
+// Atualizar status visual
+function updateStatusVisual(processoId, novoStatus) {
+    // Atualizar na tabela
+    const row = document.querySelector(`tr[data-processo-id="${processoId}"]`);
+    if (row) {
+        const select = row.querySelector('.status-selector');
+        if (select) {
+            select.value = novoStatus;
+        }
+    }
+    
+    // Atualizar nos cards
+    const card = document.querySelector(`[data-processo-id="${processoId}"] .badge`);
+    if (card) {
+        card.className = 'badge ' + getStatusBadgeClass(novoStatus);
+        card.textContent = formatStatusText(novoStatus);
+    }
+}
+
+// Destacar processo concluído
+function highlightCompletedProcess(processoId) {
+    const elements = document.querySelectorAll(`[data-processo-id="${processoId}"]`);
+    elements.forEach(element => {
+        element.style.transition = 'all 0.5s ease';
+        element.style.background = 'linear-gradient(135deg, #d4edda, #c3e6cb)';
+        element.style.transform = 'scale(1.02)';
+        
+        setTimeout(() => {
+            element.style.transform = 'scale(1)';
+            element.style.background = '';
+        }, 2000);
+    });
+}
+
+// Obter classe do badge por status
+function getStatusBadgeClass(status) {
+    const classes = {
+        'novo': 'bg-secondary',
+        'em_analise': 'bg-warning',
+        'aguardando': 'bg-info',
+        'aguardando_chamado': 'bg-info',
+        'aguardando_orientacao': 'bg-info', 
+        'sobrestado': 'bg-dark',
+        'concluido': 'bg-success'
+    };
+    return classes[status] || 'bg-secondary';
+}
+
+// Formatar texto do status
+function formatStatusText(status) {
+    const texts = {
+        'novo': 'Novo',
+        'em_analise': 'Em Análise',
+        'aguardando': 'Aguardando',
+        'aguardando_chamado': 'Aguardando Chamado',
+        'aguardando_orientacao': 'Aguardando Orientação',
+        'sobrestado': 'Sobrestado',
+        'concluido': 'Concluído'
+    };
+    return texts[status] || status;
+}
+
+// Ver detalhes do processo
+function verDetalhes(processoId) {
+    // Implementar modal de detalhes
+    showToast('info', 'Em desenvolvimento', 'Funcionalidade em desenvolvimento');
+}
+
+// Adicionar observação
+function adicionarObservacao(processoId) {
+    processoAtualObservacao = processoId;
+    const modal = new bootstrap.Modal(document.getElementById('modalObservacao'));
+    modal.show();
+}
+
+// Salvar observação
+async function salvarObservacao() {
+    const observacao = document.getElementById('observacaoText').value.trim();
+    
+    if (!observacao) {
+        showToast('warning', 'Atenção', 'Digite uma observação');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/processo/${processoAtualObservacao}/atualizar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ observacoes: observacao })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('success', 'Sucesso!', 'Observação salva com sucesso');
+            bootstrap.Modal.getInstance(document.getElementById('modalObservacao')).hide();
+            document.getElementById('observacaoText').value = '';
+        } else {
+            showToast('error', 'Erro', data.message || 'Falha ao salvar observação');
+        }
+    } catch (error) {
+        showToast('error', 'Erro', 'Falha na conexão');
+    }
+}
+
+// Atualizar página
+function refreshPage() {
+    showToast('info', 'Atualizando...', 'Recarregando dados', 1000);
+    setTimeout(() => location.reload(), 1000);
+}
+
+// Sistema de toast notifications
+function showToast(type, title, message, duration = 3000) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8'};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 5px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 9999;
+        max-width: 350px;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+    `;
+    
+    toast.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+        <div style="font-size: 0.9em;">${message}</div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Animação de entrada
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Auto-remover
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 300);
+    }, duration);
+}
+</script>
+{% endblock %}

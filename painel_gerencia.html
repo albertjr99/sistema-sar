@@ -1,0 +1,1455 @@
+{% extends 'base.html' %}
+
+{% block title %}Painel de Gerência - Sistema SAR{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">Painel Gerência</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .drag-drop-zone {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+        min-height: 200px;
+        background: #f8f9fa;
+    }
+    .drag-drop-zone.drag-over {
+        border-color: #0d6efd;
+        background: rgba(13, 110, 253, 0.1);
+    }
+    .processo-card {
+        cursor: move;
+        transition: all 0.2s ease;
+        border-left: 4px solid #6c757d;
+    }
+    .processo-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .processo-card.dragging {
+        opacity: 0.5;
+        transform: rotate(5deg);
+    }
+    .analista-card {
+        background: linear-gradient(135deg, #fff, #f8f9fa);
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 1rem;
+        height: 100%;
+    }
+    .carga-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+    }
+    .carga-baixa { background: #d1edff; color: #0066cc; }
+    .carga-media { background: #fff3cd; color: #856404; }
+    .carga-alta { background: #f8d7da; color: #721c24; }
+    
+    .stats-mini {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    .processo-priority-critica { border-left-color: #dc3545 !important; }
+    .processo-priority-alta { border-left-color: #fd7e14 !important; }
+    .processo-priority-media { border-left-color: #ffc107 !important; }
+    .processo-priority-baixa { border-left-color: #198754 !important; }
+    
+    /* Estilos para seleção de processos */
+    .processo-card.selected {
+        background: linear-gradient(135deg, #e3f2fd, #f3e5f5) !important;
+        border: 2px solid #2196f3 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3) !important;
+    }
+    
+    .processo-card {
+        transition: all 0.3s ease;
+        user-select: none;
+    }
+    
+    .processo-card:hover {
+        cursor: pointer;
+    }
+    
+    /* Estilos de notificação e chat agora são gerenciados por notifications-chat.js */
+    /* Removendo estilos duplicados para evitar conflitos */
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header sem notificações (agora na barra superior) -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-tachometer-alt me-2 text-primary"></i>Painel de Gerência
+        </h2>
+        <p class="text-muted mb-0">Gerencie processos e analistas</p>
+    </div>
+    
+    <div class="d-flex align-items-center gap-3">
+        <a href="{{ url_for('central_estatisticas') }}" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-chart-line me-1"></i>Estatísticas
+        </a>
+        <a href="{{ url_for('painel_historico') }}" class="btn btn-outline-info btn-sm">
+            <i class="fas fa-history me-1"></i>Histórico
+        </a>
+    </div>
+</div>
+
+<!-- Estatísticas Rápidas -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stats-mini">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">Não Distribuídos</small>
+                    <h4 class="text-danger mb-0">{{ processos_nao_atribuidos|length }}</h4>
+                </div>
+                <i class="fas fa-inbox text-danger" style="font-size: 2rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-mini">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">Distribuídos Hoje</small>
+                    <h4 class="text-info mb-0">{{ processos_recentes|length }}</h4>
+                </div>
+                <i class="fas fa-user-check text-info" style="font-size: 2rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-mini">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">Qtd. Analistas Setor</small>
+                    <h4 class="text-success mb-0">{{ analistas|length }}</h4>
+                </div>
+                <i class="fas fa-users text-success" style="font-size: 2rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-mini">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <small class="text-muted">Média de Distribuição por Analista por dia Útil - 2025</small>
+                    <h4 class="text-warning mb-0" id="mediaDistribuicao">
+                        Calculando...
+                    </h4>
+                </div>
+                <i class="fas fa-balance-scale text-warning" style="font-size: 2rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Processos Não Atribuídos -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-inbox me-2"></i>Processos Não Distribuídos
+                    <span class="badge bg-danger ms-2">{{ processos_nao_atribuidos|length }}</span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-success" onclick="novoProcesso()" title="Adicionar novo processo">
+                        <i class="fas fa-plus me-1"></i>Novo Processo
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="fas fa-cogs me-1"></i>Ações
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" onclick="distribuicaoInteligente()">
+                                <i class="fas fa-magic me-1"></i>Distribuição Inteligente
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" onclick="selecionarTodos()">
+                                <i class="fas fa-check-square me-1"></i>Selecionar Todos
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-2" style="max-height: 600px; overflow-y: auto;">
+                <div id="processosNaoAtribuidos">
+                    {% for processo in processos_nao_atribuidos %}
+                    <div class="processo-card card mb-2" draggable="true" data-processo-id="{{ processo.id }}">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title mb-1">{{ processo.numero }}</h6>
+                                    <p class="card-text small mb-1">{{ processo.titulo[:50] }}{% if processo.titulo|length > 50 %}...{% endif %}</p>
+                                    <div class="d-flex gap-1">
+                                        <span class="badge bg-info">{{ processo.status }}</span>
+                                    </div>
+                                </div>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-link text-muted" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" onclick="editarProcesso({{ processo.id }}, '{{ processo.numero }}', '{{ processo.titulo }}', '{{ processo.descricao }}')">
+                                            <i class="fas fa-edit me-1"></i>Editar
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <button class="btn btn-sm btn-outline-primary" onclick="selecionarTodos()">
+                    <i class="fas fa-check-square me-1"></i>Selecionar Todos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analistas -->
+    <div class="col-lg-8">
+        <div class="row g-3">
+            {% for analista in analistas %}
+            <div class="col-md-6">
+                <div class="analista-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                <i class="fas fa-user text-white"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0">{{ analista.primeiro_nome }}</h6>
+                                <small class="text-muted">Analista</small>
+                            </div>
+                        </div>
+                        {% set carga = carga_trabalho.get(analista.id, 0) %}
+                        <span class="carga-badge {% if carga < 5 %}carga-baixa{% elif carga < 15 %}carga-media{% else %}carga-alta{% endif %}">
+                            {{ carga }} processos
+                        </span>
+                    </div>
+
+                    <!-- Zona de Drop -->
+                    <div class="drag-drop-zone" 
+                         data-analista-id="{{ analista.id }}"
+                         data-analista-nome="{{ analista.primeiro_nome }}">
+                        <div class="d-flex flex-column align-items-center">
+                            <i class="fas fa-hand-pointer text-muted mb-2" style="font-size: 2rem;"></i>
+                            <p class="text-muted mb-1">Arraste processos aqui</p>
+                            <small class="text-muted">ou</small>
+                            <button class="btn btn-sm btn-outline-primary mt-2" 
+                                    onclick="atribuirManual({{ analista.id }}, '{{ analista.primeiro_nome }}')">
+                                Atribuir Manualmente
+                            </button>
+                        </div>
+                        
+                        <!-- Processos já atribuídos -->
+                        <div class="mt-3" id="processosAnalista{{ analista.id }}">
+                            <!-- Carregado via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Processos Recentemente Atribuídos -->
+{% if processos_recentes %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>Distribuições Recentes (últimas 24h)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Processo</th>
+                                <th>Título</th>
+                                <th>Analista</th>
+                                <th>Data/Hora</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for processo in processos_recentes %}
+                            <tr>
+                                <td>{{ processo.numero }}</td>
+                                <td>{{ processo.titulo[:50] }}{% if processo.titulo|length > 50 %}...{% endif %}</td>
+                                <td>{{ processo.analista.primeiro_nome if processo.analista else '-' }}</td>
+                                <td>{{ processo.data_atribuicao.strftime('%d/%m %H:%M') if processo.data_atribuicao else '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-warning" 
+                                            onclick="reverterAtribuicao({{ processo.id }}, '{{ processo.numero }}', '{{ processo.analista.primeiro_nome if processo.analista else '' }}')"
+                                            title="Voltar para não distribuídos">
+                                        <i class="fas fa-undo me-1"></i>Voltar
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal Atribuição Manual -->
+<div class="modal fade" id="modalAtribuicaoManual" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Atribuição Manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Selecione os processos para atribuir a <strong id="analistaAlvo"></strong>:</p>
+                <div id="listaProcessosAtribuicao">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmarAtribuicao()">
+                    Atribuir Selecionados
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Processo -->
+<div class="modal fade" id="modalEditarProcesso" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Processo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarProcesso">
+                    <input type="hidden" id="editProcessoId">
+                    
+                    <div class="mb-3">
+                        <label for="editNumeroProcesso" class="form-label">Número do Processo *</label>
+                        <input type="text" class="form-control" id="editNumeroProcesso" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editTituloProcesso" class="form-label">Nome do Segurado *</label>
+                        <input type="text" class="form-control" id="editTituloProcesso" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editDescricaoProcesso" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="editDescricaoProcesso" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editAnalistaProcesso" class="form-label">Reatribuir para</label>
+                        <select class="form-select" id="editAnalistaProcesso">
+                            <option value="">Remover atribuição</option>
+                            {% for analista in analistas %}
+                            <option value="{{ analista.primeiro_nome }}">{{ analista.primeiro_nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">Deixe em branco para manter a atribuição atual ou selecione um analista para reatribuir</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarEdicaoProcesso()">Salvar Alterações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Processo -->
+<div class="modal fade" id="modalNovoProcesso" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Novo Processo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoProcesso">
+                    <div class="mb-3">
+                        <label for="numeroProcesso" class="form-label">Número do Processo *</label>
+                        <input type="text" class="form-control" id="numeroProcesso" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tituloProcesso" class="form-label">Nome do Segurado *</label>
+                        <input type="text" class="form-control" id="tituloProcesso" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="descricaoProcesso" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="descricaoProcesso" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assuntoProcesso" class="form-label">Assunto *</label>
+                                <input type="text" class="form-control" id="assuntoProcesso" style="text-transform: uppercase;" placeholder="DIGITE O ASSUNTO EM MAIÚSCULAS" required>
+                                <small class="form-text text-muted">Ex: CTC, INSS, PREVIDÊNCIA, etc.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="setorOrigemProcesso" class="form-label">Setor de Origem *</label>
+                                <input type="text" class="form-control" id="setorOrigemProcesso" style="text-transform: uppercase;" placeholder="DIGITE O SETOR EM MAIÚSCULAS" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="tipoProcesso" class="form-label">Tipo de Processo *</label>
+                                <select class="form-select" id="tipoProcesso" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="FÍSICO">FÍSICO</option>
+                                    <option value="DIGITAL">DIGITAL</option>
+                                    <option value="HÍBRIDO">HÍBRIDO</option>
+                                    <option value="JUDICIAL">JUDICIAL</option>
+                                    <option value="EDOCS">EDOCS</option>
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="analistaProcesso" class="form-label">Atribuir para</label>
+                                <select class="form-select" id="analistaProcesso">
+                                    <option value="">Não atribuir agora</option>
+                                    {% for analista in analistas %}
+                                    <option value="{{ analista.primeiro_nome }}">{{ analista.primeiro_nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="criarProcesso()">Criar Processo</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Sistema de Chat para Gerência -->
+<script src="{{ url_for('static', filename='js/notifications-chat.js') }}"></script>
+<script>
+    let processosSelecionados = [];
+    let analistaAlvoId = null;
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('=== PAINEL DE GERÊNCIA CARREGADO ===');
+        setupDragAndDrop();
+        loadProcessosAnalistas();
+        setupSelecaoIndividual();
+        
+        // Aplicar event listeners para todos os cards existentes
+        document.querySelectorAll('.processo-card').forEach(card => {
+            setupDragAndDropForCard(card);
+        });
+        
+        // Auto-conversão para maiúsculas nos campos específicos
+        const camposMaiusculas = ['assuntoProcesso', 'setorOrigemProcesso'];
+        camposMaiusculas.forEach(campoId => {
+            const campo = document.getElementById(campoId);
+            if (campo) {
+                campo.addEventListener('input', function() {
+                    this.value = this.value.toUpperCase();
+                });
+            }
+        });
+        
+        // Atualizar média após 1 segundo para dar tempo da página carregar
+        setTimeout(atualizarMedia, 1000);
+    });
+
+    // Drag and Drop
+    function setupDragAndDrop() {
+        // Drag start
+        document.querySelectorAll('.processo-card').forEach(card => {
+            card.addEventListener('dragstart', function(e) {
+                const processoId = this.dataset.processoId;
+                
+                // Verificar se este processo está selecionado junto com outros
+                const processosSelecionadosAtivos = document.querySelectorAll('#processosNaoAtribuidos .processo-card.selected');
+                
+                if (processosSelecionadosAtivos.length > 1 && this.classList.contains('selected')) {
+                    // Modo múltiplo: arrastar todos os selecionados
+                    const todosSelecionados = Array.from(processosSelecionadosAtivos).map(card => card.dataset.processoId);
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                        type: 'multiple', 
+                        processos: todosSelecionados 
+                    }));
+                    
+                    // Visual feedback para todos os selecionados
+                    processosSelecionadosAtivos.forEach(selectedCard => {
+                        selectedCard.classList.add('dragging');
+                        selectedCard.style.opacity = '0.5';
+                    });
+                    
+                    console.log(`Arrastando ${todosSelecionados.length} processos selecionados`);
+                } else {
+                    // Modo único: arrastar apenas este processo
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                        type: 'single', 
+                        processos: [processoId] 
+                    }));
+                    this.classList.add('dragging');
+                }
+            });
+
+            card.addEventListener('dragend', function(e) {
+                // Remover visual feedback de todos os cards
+                document.querySelectorAll('.processo-card').forEach(card => {
+                    card.classList.remove('dragging');
+                    card.style.opacity = '';
+                });
+            });
+        });
+
+        // Drop zones
+        document.querySelectorAll('.drag-drop-zone').forEach(zone => {
+            zone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('drag-over');
+            });
+
+            zone.addEventListener('dragleave', function(e) {
+                this.classList.remove('drag-over');
+            });
+
+            zone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('drag-over');
+                
+                try {
+                    const dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    const analistaId = this.dataset.analistaId;
+                    const analista = this.dataset.analistaNome;
+                    
+                    if (dragData.type === 'multiple') {
+                        // Atribuir múltiplos processos
+                        atribuirMultiplosProcessos(dragData.processos, analistaId, analista);
+                    } else {
+                        // Atribuir processo único
+                        atribuirProcesso(dragData.processos[0], analistaId, analista);
+                    }
+                } catch (error) {
+                    console.error('Erro ao processar drop:', error);
+                    // Fallback para modo antigo (compatibilidade)
+                    const processoId = e.dataTransfer.getData('text/plain');
+                    if (processoId && !processoId.startsWith('{')) {
+                        atribuirProcesso(processoId, this.dataset.analistaId, this.dataset.analistaNome);
+                    }
+                }
+            });
+        });
+    }
+
+    // Atribuir processo via drag and drop
+    async function atribuirProcesso(processoId, analistaId, analista) {
+        // FEEDBACK VISUAL INSTANTÂNEO - Remove o card imediatamente
+        const processoCard = document.querySelector(`[data-processo-id="${processoId}"]`);
+        let cardHTML = null;
+        
+        if (processoCard) {
+            // Salvar o HTML para poder restaurar em caso de erro
+            cardHTML = processoCard.outerHTML;
+            
+            // Animação de saída rápida
+            processoCard.style.transition = 'all 0.2s ease';
+            processoCard.style.transform = 'translateX(100%)';
+            processoCard.style.opacity = '0';
+            
+            // Remove da DOM após a animação
+            setTimeout(() => {
+                if (processoCard.parentNode) {
+                    processoCard.remove();
+                }
+            }, 200);
+            
+            // Mostrar feedback imediato
+            showToast('info', 'Atribuindo...', `Processo sendo atribuído para ${analista}`, 2000);
+        }
+
+        try {
+            const response = await fetch(`/api/processo/${processoId}/atribuir`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ analista_id: analistaId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Sucesso - Atualizar toast
+                showToast('success', 'Sucesso!', `Processo atribuído para ${analista}`);
+                
+                // Atualizar média automaticamente após atribuição
+                setTimeout(atualizarMedia, 300);
+                
+                // Atualizar contador de "Não Distribuídos"
+                atualizarContadorNaoDistribuidos();
+                
+            } else {
+                // Erro - Restaurar o card na lista
+                if (cardHTML) {
+                    const container = document.getElementById('processosNaoAtribuidos');
+                    if (container) {
+                        container.insertAdjacentHTML('beforeend', cardHTML);
+                        // Re-aplicar event listeners
+                        setupDragAndDropForCard(container.lastElementChild);
+                    }
+                }
+                showToast('error', 'Erro', result.message);
+            }
+        } catch (error) {
+            // Erro de conexão - Restaurar o card
+            if (cardHTML) {
+                const container = document.getElementById('processosNaoAtribuidos');
+                if (container) {
+                    container.insertAdjacentHTML('beforeend', cardHTML);
+                    setupDragAndDropForCard(container.lastElementChild);
+                }
+            }
+            console.error('Erro:', error);
+            showToast('error', 'Erro', 'Falha na atribuição do processo.');
+        }
+    }
+
+    // Atribuir múltiplos processos via drag and drop
+    async function atribuirMultiplosProcessos(processosIds, analistaId, analista) {
+        if (!processosIds || processosIds.length === 0) {
+            showToast('warning', 'Aviso', 'Nenhum processo para atribuir');
+            return;
+        }
+
+        console.log(`🔍 Atribuindo ${processosIds.length} processos para ${analista} (ID: ${analistaId})`);
+
+        // FEEDBACK VISUAL INSTANTÂNEO - Remove todos os cards imediatamente
+        const cardsParaRemover = [];
+        const cardsHTML = [];
+        
+        processosIds.forEach(processoId => {
+            const processoCard = document.querySelector(`[data-processo-id="${processoId}"]`);
+            if (processoCard) {
+                cardsParaRemover.push(processoCard);
+                cardsHTML.push({ id: processoId, html: processoCard.outerHTML });
+                
+                // Animação de saída rápida
+                processoCard.style.transition = 'all 0.2s ease';
+                processoCard.style.transform = 'translateX(100%)';
+                processoCard.style.opacity = '0';
+                
+                // Remove da DOM após a animação
+                setTimeout(() => {
+                    if (processoCard.parentNode) {
+                        processoCard.remove();
+                    }
+                }, 200);
+            }
+        });
+        
+        // Feedback imediato
+        showToast('info', 'Atribuindo...', `${processosIds.length} processos sendo atribuídos para ${analista}`, 3000);
+        
+        // Atualizar contador imediatamente
+        setTimeout(atualizarContadorNaoDistribuidos, 300);
+
+        try {
+            let sucessos = 0;
+            let falhas = 0;
+            const processosComErro = [];
+
+            // Atribuir cada processo individualmente
+            for (const processoId of processosIds) {
+                try {
+                    console.log(`🔍 Atribuindo processo ${processoId} para ${analista}`);
+                    
+                    const response = await fetch(`/api/processo/${processoId}/atribuir`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            analista_id: analistaId,
+                            analista_nome: analista 
+                        })
+                    });
+
+                    const result = await response.json();
+                    console.log(`📋 Resposta para processo ${processoId}:`, result);
+                    
+                    if (result.success) {
+                        sucessos++;
+                        console.log(`✅ Processo ${processoId} atribuído com sucesso`);
+                        // Remover da lista de selecionados
+                        processosSelecionados = processosSelecionados.filter(id => id !== processoId);
+                    } else {
+                        falhas++;
+                        processosComErro.push({ id: processoId, erro: result.message });
+                        console.error(`❌ Erro ao atribuir processo ${processoId}:`, result.message);
+                    }
+                } catch (error) {
+                    falhas++;
+                    processosComErro.push({ id: processoId, erro: error.message });
+                    console.error(`❌ Erro ao atribuir processo ${processoId}:`, error);
+                }
+            }
+            
+            // Restaurar processos que falharam
+            if (processosComErro.length > 0) {
+                console.log(`🔄 Restaurando ${processosComErro.length} processos que falharam`);
+                const container = document.getElementById('processosNaoAtribuidos');
+                processosComErro.forEach(erro => {
+                    const cardOriginal = cardsHTML.find(c => c.id === erro.id);
+                    if (cardOriginal && container) {
+                        container.insertAdjacentHTML('beforeend', cardOriginal.html);
+                        setupDragAndDropForCard(container.lastElementChild);
+                    }
+                });
+            }
+            
+            // Mostrar resultado
+            if (sucessos > 0 && falhas === 0) {
+                showToast('success', 'Sucesso!', `${sucessos} processos atribuídos para ${analista}`);
+            } else if (sucessos > 0 && falhas > 0) {
+                showToast('warning', 'Parcial', `${sucessos} processos atribuídos, ${falhas} falharam`);
+            } else {
+                showToast('error', 'Erro', `Falha ao atribuir ${falhas} processos`);
+            }
+            
+            // Atualizar interface
+            updateAnalistaCount(analistaId);
+            atualizarBotaoSelecao();
+            atualizarContadorNaoDistribuidos();
+            
+            // Atualizar média após múltiplas atribuições
+            if (sucessos > 0) {
+                setTimeout(atualizarMedia, 500);
+            }
+            
+        } catch (error) {
+            console.error('❌ Erro geral na atribuição múltipla:', error);
+            // Em caso de erro geral, restaurar todos os cards
+            const container = document.getElementById('processosNaoAtribuidos');
+            cardsHTML.forEach(cardData => {
+                if (container) {
+                    container.insertAdjacentHTML('beforeend', cardData.html);
+                    setupDragAndDropForCard(container.lastElementChild);
+                }
+            });
+            atualizarContadorNaoDistribuidos();
+            showToast('error', 'Erro', 'Falha na atribuição múltipla');
+        }
+    }
+
+    // Distribuição inteligente
+    async function distribuicaoInteligente() {
+        const processosCards = document.querySelectorAll('#processosNaoAtribuidos .processo-card');
+        const processosIds = Array.from(processosCards).map(card => card.dataset.processoId);
+        
+        if (processosIds.length === 0) {
+            showToast('warning', 'Aviso', 'Nenhum processo não atribuído para distribuir');
+            return;
+        }
+
+        if (!confirm(`Distribuir ${processosIds.length} processos automaticamente entre os analistas?`)) {
+            return;
+        }
+
+        try {
+            showLoading();
+            const response = await fetch('/sar/api/distribuicao-inteligente', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ processo_ids: processosIds })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            hideLoading();
+            
+            if (result.success) {
+                showToast('success', 'Sucesso!', result.message);
+                
+                // Remover processos distribuídos da lista
+                processosCards.forEach(card => {
+                    card.remove();
+                });
+                
+                // Atualizar estatísticas
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showToast('error', 'Erro', result.message || 'Falha na distribuição');
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('Erro na distribuição:', error);
+            showToast('error', 'Erro', `Falha na distribuição automática: ${error.message}`);
+        }
+    }
+
+    // Novo processo
+    function novoProcesso() {
+        document.getElementById('formNovoProcesso').reset();
+        const modal = new bootstrap.Modal(document.getElementById('modalNovoProcesso'));
+        modal.show();
+    }
+
+    // Função para criar um novo processo
+    async function criarProcesso() {
+        const numero = document.getElementById('numeroProcesso').value.trim();
+        const titulo = document.getElementById('tituloProcesso').value.trim();
+        const descricao = document.getElementById('descricaoProcesso').value.trim();
+        const assunto = document.getElementById('assuntoProcesso').value.trim().toUpperCase();
+        const setorOrigem = document.getElementById('setorOrigemProcesso').value.trim().toUpperCase();
+        const tipoProcesso = document.getElementById('tipoProcesso').value;
+        const analista = document.getElementById('analistaProcesso').value;
+
+        if (!numero || !titulo || !assunto || !setorOrigem || !tipoProcesso) {
+            showToast('warning', 'Campos Obrigatórios', 'Número, Nome do Segurado, Assunto, Setor de Origem e Tipo de Processo são obrigatórios.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/processo/criar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    numero, 
+                    titulo, 
+                    descricao, 
+                    assunto,
+                    setor_origem: setorOrigem,
+                    tipo_processo: tipoProcesso,
+                    analista_nome: analista
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('success', 'Sucesso!', 'Processo criado com sucesso!');
+                
+                // Fechar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalNovoProcesso'));
+                modal.hide();
+                
+                // Se foi atribuído diretamente, atualizar média
+                if (analista) {
+                    setTimeout(atualizarMedia, 500);
+                }
+                
+                // Recarregar página
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast('error', 'Erro', 'Erro ao criar processo: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Erro:', error);
+            showToast('error', 'Erro', 'Erro de conexão ao criar processo.');
+        }
+    }
+
+    // Atribuição manual
+    function atribuirManual(analistaId, analistaNome) {
+        analistaAlvoId = analistaId;
+        document.getElementById('analistaAlvo').textContent = analistaNome;
+        
+        // Listar processos disponíveis
+        const processos = document.querySelectorAll('.processo-card');
+        const lista = document.getElementById('listaProcessosAtribuicao');
+        
+        lista.innerHTML = '';
+        processos.forEach(processo => {
+            const id = processo.dataset.processoId;
+            const numero = processo.querySelector('h6').textContent;
+            const titulo = processo.querySelector('p').textContent;
+            
+            lista.innerHTML += `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${id}" id="processo${id}">
+                    <label class="form-check-label" for="processo${id}">
+                        <strong>${numero}</strong> - ${titulo}
+                    </label>
+                </div>
+            `;
+        });
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalAtribuicaoManual'));
+        modal.show();
+    }
+
+    // Confirmar atribuição manual
+    async function confirmarAtribuicao() {
+        const checkboxes = document.querySelectorAll('#listaProcessosAtribuicao input[type="checkbox"]:checked');
+        const processoIds = Array.from(checkboxes).map(cb => cb.value);
+
+        if (processoIds.length === 0) {
+            showToast('warning', 'Aviso', 'Selecione pelo menos um processo.');
+            return;
+        }
+
+        try {
+            for (const processoId of processoIds) {
+                await atribuirProcesso(processoId, analistaAlvoId, document.getElementById('analistaAlvo').textContent);
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('modalAtribuicaoManual')).hide();
+            showToast('success', 'Sucesso', 'Processos atribuídos com sucesso!');
+        } catch (error) {
+            console.error('Erro:', error);
+            showToast('error', 'Erro', 'Falha na atribuição manual.');
+        }
+    }
+
+    // Filtrar por prioridade
+    function filtrarPorPrioridade(prioridade) {
+        const processos = document.querySelectorAll('.processo-card');
+        processos.forEach(processo => {
+            const processPrioridade = processo.dataset.prioridade;
+            if (prioridade === '' || processPrioridade === prioridade) {
+                processo.style.display = 'block';
+            } else {
+                processo.style.display = 'none';
+            }
+        });
+    }
+
+    // Funções auxiliares para interface responsiva
+    function setupDragAndDropForCard(card) {
+        if (!card) return;
+        
+        card.addEventListener('dragstart', function(e) {
+            const processoId = this.dataset.processoId;
+            
+            const processosSelecionadosAtivos = document.querySelectorAll('#processosNaoAtribuidos .processo-card.selected');
+            
+            if (processosSelecionadosAtivos.length > 1 && this.classList.contains('selected')) {
+                const todosSelecionados = Array.from(processosSelecionadosAtivos).map(card => card.dataset.processoId);
+                e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                    type: 'multiple', 
+                    processos: todosSelecionados 
+                }));
+                
+                processosSelecionadosAtivos.forEach(selectedCard => {
+                    selectedCard.classList.add('dragging');
+                    selectedCard.style.opacity = '0.5';
+                });
+                
+                console.log(`Arrastando ${todosSelecionados.length} processos selecionados`);
+            } else {
+                e.dataTransfer.setData('text/plain', JSON.stringify({ 
+                    type: 'single', 
+                    processos: [processoId] 
+                }));
+                this.classList.add('dragging');
+            }
+        });
+
+        card.addEventListener('dragend', function(e) {
+            document.querySelectorAll('.processo-card').forEach(card => {
+                card.classList.remove('dragging');
+                card.style.opacity = '';
+            });
+        });
+        
+        // Adicionar eventos de clique para seleção
+        card.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown') && 
+                !e.target.closest('.btn') &&
+                !this.classList.contains('dragging')) {
+                
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSelecaoProcesso(this);
+            }
+        });
+    }
+
+    function atualizarContadorNaoDistribuidos() {
+        const container = document.getElementById('processosNaoAtribuidos');
+        const badge = document.querySelector('.badge.bg-danger');
+        
+        if (container && badge) {
+            const count = container.querySelectorAll('.processo-card').length;
+            badge.textContent = count;
+            
+            // Atualizar também o card de estatísticas
+            const statsCard = document.querySelector('.stats-mini h4.text-danger');
+            if (statsCard) {
+                statsCard.textContent = count;
+            }
+        }
+    }
+
+    function loadProcessosAnalistas() {
+        // Placeholder para carregar processos dos analistas
+        console.log('Carregando processos dos analistas...');
+    }
+
+    function updateAnalistaCount(analistaId) {
+        // Atualizar contador de processos do analista
+        console.log('Atualizando contador do analista:', analistaId);
+    }
+
+    function updateStats(data) {
+        // Atualizar estatísticas gerais
+        console.log('Atualizando estatísticas:', data);
+    }
+
+    function showLoading() {
+        // Mostrar indicador de carregamento
+        const loader = document.createElement('div');
+        loader.id = 'loading-indicator';
+        loader.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2">Processando...</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loader);
+    }
+
+    function hideLoading() {
+        // Ocultar indicador de carregamento
+        const loader = document.getElementById('loading-indicator');
+        if (loader) {
+            loader.remove();
+        }
+    }
+
+    function showToast(type, title, message, duration = 3000) {
+        // Sistema de notificação toast
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8'};
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 9999;
+            max-width: 350px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        `;
+        
+        toast.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+            <div style="font-size: 0.9em;">${message}</div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Animação de entrada
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Auto-remover
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 300);
+        }, duration);
+    }
+
+    // Funções auxiliares para seleção de processos
+    function selecionarTodos() {
+        const processosCards = document.querySelectorAll('#processosNaoAtribuidos .processo-card');
+        
+        if (processosCards.length === 0) {
+            showToast('warning', 'Aviso', 'Nenhum processo disponível para selecionar');
+            return;
+        }
+
+        // Verificar se já existem selecionados
+        const jaSelecionados = document.querySelectorAll('#processosNaoAtribuidos .processo-card.selected');
+        
+        if (jaSelecionados.length === processosCards.length) {
+            // Desselecionar todos
+            processosCards.forEach(card => {
+                card.classList.remove('selected');
+                card.style.background = '';
+                card.style.border = '';
+            });
+            processosSelecionados = [];
+            showToast('info', 'Desmarcado', 'Todos os processos foram desmarcados');
+        } else {
+            // Selecionar todos
+            processosSelecionados = [];
+            processosCards.forEach(card => {
+                card.classList.add('selected');
+                card.style.background = 'linear-gradient(135deg, #e3f2fd, #f3e5f5)';
+                card.style.border = '2px solid #2196f3';
+                processosSelecionados.push(card.dataset.processoId);
+            });
+            showToast('success', 'Selecionado', `${processosCards.length} processos selecionados`);
+        }
+        
+        // Atualizar botão para mostrar ações disponíveis
+        atualizarBotaoSelecao();
+    }
+
+    // Adicionar funcionalidade de seleção individual por clique
+    function setupSelecaoIndividual() {
+        document.addEventListener('click', function(e) {
+            const processoCard = e.target.closest('.processo-card');
+            
+            // Só processar cliques que não são no dropdown e não são durante drag
+            if (processoCard && 
+                !e.target.closest('.dropdown') && 
+                !e.target.closest('.btn') &&
+                !processoCard.classList.contains('dragging')) {
+                
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSelecaoProcesso(processoCard);
+            }
+        });
+        
+        // Prevenir que cliques em elementos draggable interfiram na seleção
+        document.addEventListener('mousedown', function(e) {
+            const processoCard = e.target.closest('.processo-card');
+            if (processoCard && e.button === 0) { // Botão esquerdo
+                // Se Ctrl está pressionado, é seleção múltipla
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    toggleSelecaoProcesso(processoCard);
+                    return;
+                }
+                
+                // Se clicou em um processo não selecionado, selecionar apenas ele
+                if (!processoCard.classList.contains('selected') && 
+                    !e.target.closest('.dropdown')) {
+                    
+                    // Limpar seleção anterior
+                    document.querySelectorAll('.processo-card.selected').forEach(card => {
+                        card.classList.remove('selected');
+                        card.style.background = '';
+                        card.style.border = '';
+                    });
+                    processosSelecionados = [];
+                    
+                    // Selecionar o clicado
+                    processoCard.classList.add('selected');
+                    processoCard.style.background = 'linear-gradient(135deg, #e3f2fd, #f3e5f5)';
+                    processoCard.style.border = '2px solid #2196f3';
+                    processosSelecionados.push(processoCard.dataset.processoId);
+                    
+                    atualizarBotaoSelecao();
+                }
+            }
+        });
+    }
+
+    // Toggle seleção de processo individual
+    function toggleSelecaoProcesso(card) {
+        const processoId = card.dataset.processoId;
+        
+        if (card.classList.contains('selected')) {
+            // Desselecionar
+            card.classList.remove('selected');
+            card.style.background = '';
+            card.style.border = '';
+            processosSelecionados = processosSelecionados.filter(id => id !== processoId);
+        } else {
+            // Selecionar
+            card.classList.add('selected');
+            card.style.background = 'linear-gradient(135deg, #e3f2fd, #f3e5f5)';
+            card.style.border = '2px solid #2196f3';
+            processosSelecionados.push(processoId);
+        }
+        
+        atualizarBotaoSelecao();
+    }
+    function atualizarBotaoSelecao() {
+        const botaoSelecionar = document.querySelector('[onclick="selecionarTodos()"]');
+        const processosCards = document.querySelectorAll('#processosNaoAtribuidos .processo-card');
+        const selecionados = document.querySelectorAll('#processosNaoAtribuidos .processo-card.selected');
+        
+        if (selecionados.length === 0) {
+            botaoSelecionar.innerHTML = '<i class="fas fa-check-square me-1"></i>Selecionar Todos';
+            botaoSelecionar.className = 'btn btn-sm btn-outline-primary';
+        } else if (selecionados.length === processosCards.length) {
+            botaoSelecionar.innerHTML = '<i class="fas fa-times me-1"></i>Desmarcar Todos';
+            botaoSelecionar.className = 'btn btn-sm btn-outline-danger';
+        } else {
+            botaoSelecionar.innerHTML = `<i class="fas fa-check-square me-1"></i>${selecionados.length} Selecionados`;
+            botaoSelecionar.className = 'btn btn-sm btn-primary';
+        }
+    }
+
+    // Editar processo
+    function editarProcesso(processoId, numero, titulo, descricao) {
+        // Preencher o formulário
+        document.getElementById('editProcessoId').value = processoId;
+        document.getElementById('editNumeroProcesso').value = numero || '';
+        document.getElementById('editTituloProcesso').value = titulo || '';
+        document.getElementById('editDescricaoProcesso').value = descricao || '';
+        document.getElementById('editAnalistaProcesso').value = '';
+        
+        // Abrir modal
+        const modal = new bootstrap.Modal(document.getElementById('modalEditarProcesso'));
+        modal.show();
+    }
+
+    // Salvar edição do processo
+    async function salvarEdicaoProcesso() {
+        const processoId = document.getElementById('editProcessoId').value;
+        const numero = document.getElementById('editNumeroProcesso').value.trim();
+        const titulo = document.getElementById('editTituloProcesso').value.trim();
+        const descricao = document.getElementById('editDescricaoProcesso').value.trim();
+        const novoAnalista = document.getElementById('editAnalistaProcesso').value;
+
+        if (!numero || !titulo) {
+            showToast('warning', 'Atenção', 'Número e título são obrigatórios');
+            return;
+        }
+
+        try {
+            showLoading();
+            
+            // Primeiro, atualizar os dados básicos do processo
+            const updateResponse = await fetch(`/api/processo/${processoId}/editar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    numero: numero,
+                    titulo: titulo,
+                    descricao: descricao
+                })
+            });
+
+            if (!updateResponse.ok) {
+                throw new Error('Falha ao atualizar dados do processo');
+            }
+
+            // Se houver reatribuição, fazer a atribuição
+            if (novoAnalista) {
+                const atribuirResponse = await fetch(`/api/processo/${processoId}/atribuir`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ analista_nome: novoAnalista })
+                });
+
+                if (!atribuirResponse.ok) {
+                    throw new Error('Falha ao reatribuir processo');
+                }
+            }
+
+            hideLoading();
+            showToast('success', 'Sucesso', 'Processo editado com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarProcesso')).hide();
+            
+            // Recarregar a página para refletir as mudanças
+            setTimeout(() => location.reload(), 1500);
+            
+        } catch (error) {
+            hideLoading();
+            showToast('error', 'Erro', `Falha ao editar processo: ${error.message}`);
+        }
+    }
+
+    // Reverter atribuição de processo (voltar para não distribuídos)
+    async function reverterAtribuicao(processoId, numero, analistaNome) {
+        const confirmacao = confirm(
+            `Tem certeza que deseja reverter a atribuição?\n\n` +
+            `Processo: ${numero}\n` +
+            `Analista: ${analistaNome}\n\n` +
+            `O processo voltará para a lista de "Não Distribuídos".`
+        );
+
+        if (!confirmacao) {
+            return;
+        }
+
+        try {
+            showLoading();
+            
+            const response = await fetch(`/api/processo/${processoId}/reverter-atribuicao`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            hideLoading();
+            
+            if (result.success) {
+                showToast('success', 'Sucesso!', `Processo ${numero} voltou para não distribuídos`);
+                
+                // Recarregar a página para atualizar listas
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+                
+            } else {
+                showToast('error', 'Erro', result.message || 'Falha ao reverter atribuição');
+            }
+            
+        } catch (error) {
+            hideLoading();
+            console.error('Erro ao reverter atribuição:', error);
+            showToast('error', 'Erro', `Falha ao reverter atribuição: ${error.message}`);
+        }
+    }
+
+        
+        // Função para atualizar média de distribuição
+        async function atualizarMedia() {
+            try {
+                const response = await fetch('/sar/api/media-distribuicao');
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('=== MÉDIA DE DISTRIBUIÇÃO CORRIGIDA ===');
+                    console.log('📊 Processos históricos:', data.processos_historicos);
+                    console.log('📊 Processos novos sistema:', data.processos_novos);
+                    console.log('📊 Total processos:', data.total_processos);
+                    console.log('📊 Número analistas:', data.num_analistas);
+                    console.log('📊 Dias úteis ano:', data.dias_uteis_ano);
+                    console.log('✅ FÓRMULA CORRETA:', data.formula_correta);
+                    console.log('✅ MÉDIA CORRETA:', data.media);
+                    console.log('📝 EXPLICAÇÃO:', data.explicacao);
+                    console.log('==========================================');
+                    
+                    // BUSCA ESPECÍFICA pelo card de "Média de Distribuição por Analista"
+                    let elemento = null;
+                    
+                    // 1. Procurar pelo ID específico
+                    elemento = document.getElementById('mediaDistribuicao');
+                    
+                    // 2. Se não encontrou pelo ID, procurar pelo texto específico do título
+                    if (!elemento) {
+                        const cards = document.querySelectorAll('.card, .stats-mini');
+                        for (const card of cards) {
+                            const titulo = card.querySelector('h6, .card-title, small');
+                            if (titulo && titulo.textContent.includes('Média de Distribuição')) {
+                                elemento = card.querySelector('h2, h4, .display-4, .mb-0');
+                                console.log('✅ Encontrado card pela título "Média de Distribuição"');
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (elemento) {
+                        // ATUALIZAR O ELEMENTO ENCONTRADO
+                        const valorAntigo = elemento.textContent;
+                        elemento.textContent = data.media;
+                        elemento.style.color = '#28a745'; // Verde para indicar que está correto
+                        
+                        // Adicionar explicação no título
+                        const card = elemento.closest('.card, .stats-mini');
+                        if (card) {
+                            card.setAttribute('title', 
+                                `✅ CÁLCULO CORRETO!\n\n` +
+                                `FÓRMULA: ${data.formula_correta}\n\n` +
+                                `EXPLICAÇÃO: ${data.explicacao}\n\n` +
+                                `DETALHES:\n` +
+                                `• ${data.detalhamento.base_historica}\n` +
+                                `• ${data.detalhamento.processos_sistema}\n` +
+                                `• ${data.detalhamento.total_computado}\n` +
+                                `• ${data.detalhamento.calculo}`
+                            );
+                        }
+                        
+                        console.log(`✅ SUCESSO! Média atualizada: ${data.media} processos por analista por dia útil`);
+                        
+                        // Feedback visual de sucesso
+                        elemento.style.transition = 'all 0.3s ease';
+                        elemento.style.transform = 'scale(1.05)';
+                        elemento.style.backgroundColor = '#e6ffe6';
+                        
+                        setTimeout(() => {
+                            elemento.style.transform = 'scale(1)';
+                            elemento.style.backgroundColor = '';
+                        }, 1000);
+                        
+                    } else {
+                        console.log('❌ Elemento não encontrado para atualizar média');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao buscar média:', error);
+            }
+        }
+        
+        // Inicialização da página
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== PAINEL DE GERÊNCIA CARREGADO ===');
+            
+            // Atualizar média após 1 segundo para dar tempo da página carregar
+            setTimeout(atualizarMedia, 1000);
+        });
+
+
+    // Limpar intervalos ao sair da página
+    window.addEventListener('beforeunload', function() {
+        if (notificationsInterval) clearInterval(notificationsInterval);
+        if (chatInterval) clearInterval(chatInterval);
+    });
+</script>
+{% endblock %}
